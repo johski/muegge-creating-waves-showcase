@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MUEGGE — creating waves · Showcase</title>
+<style>
+  :root {
+    --deep:#0a1d37; --ink:#0a1523; --cyan:#60C6F0; --green:#61CE70; --peach:#FFBC7D;
+    --text:#cdd6e4; --muted:#7c8aa0;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html { font-size:112.5%; }
+  body { font-family:'Hellix','Inter',system-ui,-apple-system,sans-serif; background:var(--ink); color:var(--text); overflow-x:hidden; font-weight:500; }
+
+  .hero { position:relative; height:100vh; min-height:560px; width:100%; }
+  #wave { position:absolute; inset:0; width:100%; height:100%; display:block; }
+  .hero__content { position:absolute; inset:0; display:flex; flex-direction:column; justify-content:center; padding:0 8vw; pointer-events:none; z-index:2; }
+  .eyebrow { letter-spacing:.28em; text-transform:uppercase; font-size:.72rem; color:var(--cyan); margin-bottom:1.2rem; font-weight:700; }
+  h1 { font-size:clamp(2.4rem,7vw,4rem); line-height:1.05; font-weight:700; color:#fff; letter-spacing:.5px; }
+  h1 em { font-style:normal; color:var(--cyan); }
+  .sub { margin-top:1.4rem; max-width:34ch; color:var(--muted); font-size:1.05rem; line-height:1.5; }
+
+  .panel { position:fixed; left:50%; bottom:1.4rem; transform:translateX(-50%); z-index:10;
+    display:flex; flex-wrap:wrap; gap:.3rem; align-items:center; justify-content:center;
+    padding:.55rem .6rem; border:1px solid rgba(96,198,240,.25); background:rgba(10,21,35,.78);
+    backdrop-filter:blur(10px); border-radius:3px; max-width:96vw; }
+  .panel button { font:inherit; font-size:.76rem; font-weight:500; letter-spacing:.03em; color:var(--text);
+    background:transparent; border:1px solid transparent; padding:.45rem .7rem; cursor:pointer; border-radius:2px; transition:.2s ease; white-space:nowrap; }
+  .panel button:hover { color:#fff; background:rgba(96,198,240,.12); }
+  .panel button.active { color:var(--ink); background:var(--cyan); font-weight:700; }
+  .panel .sep { width:1px; height:22px; background:rgba(255,255,255,.14); margin:0 .25rem; }
+  .panel .scrub { display:none; align-items:center; gap:.5rem; padding:0 .35rem; }
+  .panel .scrub.show { display:flex; }
+  .panel input[type=range] { width:130px; accent-color:var(--cyan); }
+
+  .caption { position:fixed; left:50%; bottom:5rem; transform:translateX(-50%); z-index:9; font-size:.82rem; color:var(--muted); text-align:center; max-width:64ch; padding:0 1rem; }
+  /* Stations-Labels (nur Kette B) */
+  .stations { position:fixed; left:50%; bottom:6.6rem; transform:translateX(-50%); z-index:9; display:none; gap:1.4rem; font-size:.7rem; letter-spacing:.06em; text-transform:uppercase; }
+  .stations.show { display:flex; }
+  .stations span { color:var(--muted); transition:.25s ease; opacity:.5; }
+  .stations span.on { color:var(--cyan); opacity:1; text-shadow:0 0 12px rgba(96,198,240,.6); }
+  .hint { position:fixed; top:1.2rem; right:1.4rem; z-index:9; font-size:.7rem; color:var(--muted); letter-spacing:.05em; }
+  @media (max-width:620px){ .hint, .sub, .stations { display:none; } }
+</style>
+</head>
+<body>
+  <section class="hero">
+    <canvas id="wave"></canvas>
+    <div class="hero__content">
+      <div class="eyebrow">MUEGGE · Microwave & Plasma</div>
+      <h1>creating <em>waves</em></h1>
+      <p class="sub">Vom Stromnetz bis zum Plasmabrenner — die komplette Kette, sichtbar gemacht.</p>
+    </div>
+  </section>
+
+  <p class="hint">Maus bewegen · klicken sendet ein Signal</p>
+  <div class="stations" id="stations">
+    <span>Generator</span><span>Magnetron</span><span>Hohlleiter</span><span>Plasma</span><span>Kristall</span>
+  </div>
+  <div class="caption" id="caption"></div>
+
+  <nav class="panel" id="panel">
+    <button data-mode="wave">Wave</button>
+    <button data-mode="ring">Ring</button>
+    <button data-mode="ring2">Ring 2</button>
+    <button data-mode="grid">Grid</button>
+    <button data-mode="magnet">Magnet</button>
+    <button data-mode="pulse">Signal</button>
+    <button data-mode="gem">Diamant</button>
+    <button data-mode="reaktor">Reaktor</button>
+    <button data-mode="plasma">Plasma</button>
+    <span class="sep"></span>
+    <button data-mode="chain">▶ Kette</button>
+    <span class="scrub" id="scrub"><input type="range" min="0" max="1" step="0.001" value="0" id="range" /></span>
+  </nav>
+
+  <div id="err" style="display:none;position:fixed;inset:0;z-index:99;background:rgba(0,0,0,.92);color:#ff8a8a;font:12px/1.5 monospace;padding:2rem;overflow:auto;white-space:pre-wrap;"></div>
+  <script type="module">
+    const showErr = (label, e) => { const b=document.getElementById('err'); b.style.display='block'; b.textContent += '\n=== '+label+' ===\n'+(e&&e.stack?e.stack:(e&&e.message)||e)+'\n'; };
+    window.addEventListener('error', (ev) => showErr('window.error', ev.error || ev.message));
+    window.addEventListener('unhandledrejection', (ev) => showErr('promise', ev.reason));
+
+    let createWaveField;
+    try { ({ createWaveField } = await import('./wave.js')); }
+    catch (e) { showErr('import wave.js', e); throw e; }
+
+    const CAPTIONS = {
+      wave:    'a) Mikrowelle — eine Sinus-Wellenfront laeuft durchs Feld. Der Hero-Default.',
+      ring:    'Ring (antigravity) — wabernder Ring folgt dem Cursor, leicht verzoegert (perspektivisch). Maus bewegen!',
+      ring2:   'Ring 2 (antigravity, flach) — screen-aligned, naeher an Google, nicht herausgezoomt. Maus bewegen!',
+      grid:    'c1) Grid — echtes Top-Down: ruhig atmendes Punktefeld (Prozess-Flaeche / Wafer).',
+      magnet:  'Magnet — ein Feld schiebt die Atome auseinander (folgt der Maus, idle kreist es). Analog zum Magnetron.',
+      pulse:   'd) Signal — ein Puls strahlt von der Quelle aus: "Signal gesendet".',
+      gem:     'f) Diamant — CVD-Wachstum: Atome stroemen rein und wachsen Schicht fuer Schicht zum Kristall (Loop).',
+      reaktor: 'f) Reaktor — strahlender Kristall-Kern (die fruehere Diamant-Form, behalten).',
+      plasma:  'f) Plasma — leuchtende, pulsierende Plasma-Kugel ("das Herz").',
+      chain:   'Kette "Die Linie" — ruhiges Feld, EIN Puls reist durch die Stationen (Labels oben). Slider = Scroll-Kopplung.',
+    };
+
+    const canvas = document.getElementById('wave');
+    const panel = document.getElementById('panel');
+    const buttons = [...panel.querySelectorAll('button')];
+    const caption = document.getElementById('caption');
+    const scrub = document.getElementById('scrub');
+    const range = document.getElementById('range');
+    const stations = document.getElementById('stations');
+    const stationEls = [...stations.querySelectorAll('span')];
+    let dragging = false;
+
+    let field;
+    try {
+      field = createWaveField(canvas, {
+        density: 1.0,
+        onChain: (pos) => {
+          if (!dragging) range.value = pos;
+          const active = Math.min(4, Math.floor(pos * 5));
+          stationEls.forEach((el, i) => el.classList.toggle('on', i <= active)); // passierte Stationen bleiben an
+        },
+      });
+    } catch (e) { showErr('createWaveField', e); throw e; }
+
+    function select(mode) {
+      field.setMode(mode);
+      buttons.forEach((b) => b.classList.toggle('active', b.dataset.mode === mode));
+      caption.textContent = CAPTIONS[mode] || '';
+      const isChain = mode === 'chain';
+      scrub.classList.toggle('show', isChain);
+      stations.classList.toggle('show', isChain);
+    }
+    buttons.forEach((b) => b.addEventListener('click', () => select(b.dataset.mode)));
+    range.addEventListener('pointerdown', () => { dragging = true; });
+    window.addEventListener('pointerup', () => { dragging = false; });
+    range.addEventListener('input', () => field.scrub(parseFloat(range.value)));
+
+    select('wave');
+  </script>
+</body>
+</html>
