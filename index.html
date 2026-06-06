@@ -63,7 +63,8 @@
   <nav class="panel" id="panel">
     <button data-mode="wave">Wave</button>
     <button data-mode="ring">Ring</button>
-    <button data-mode="antigravity">Antigravity</button>
+    <button data-mode="agdots">AG Dots</button>
+    <button data-mode="antigravity">AG Dashes</button>
     <button data-mode="grid">Grid</button>
     <button data-mode="magnet">Magnet</button>
     <button data-mode="pulse">Signal</button>
@@ -87,8 +88,9 @@
 
     const CAPTIONS = {
       wave:    'a) Mikrowelle — eine Sinus-Wellenfront laeuft durchs Feld. Der Hero-Default.',
-      ring:    'Ring — integrierte Dots-Variante (morpht mit allen): wabernder Cursor-Ring, aussen gedimmt. Maus bewegen!',
-      antigravity: 'Antigravity — Dash-Partikel (Striche) im Flow-Feld; aussen fast leer, am Cursor ein wabernder Ring, der wirbelt. Maus bewegen!',
+      ring:    'Ring — Cursor-Ring auf dem Grid (morpht mit allen Modi), aussen gedimmt. Maus bewegen!',
+      agdots:  'AG Dots — Antigravity mit Dots: wenige grosse, verstreute Punkte, aussen leer, am Cursor ein wabernder Ring. Maus bewegen!',
+      antigravity: 'AG Dashes — Antigravity als Striche (Google-nah): Dashes im Flow-Feld, aussen fast leer, am Cursor wirbelnder Ring. Eigenes Primitiv -> morpht NICHT. Maus bewegen!',
       grid:    'c1) Grid — echtes Top-Down: ruhig atmendes Punktefeld (Prozess-Flaeche / Wafer).',
       magnet:  'Magnet — ein Feld schiebt die Atome auseinander (folgt der Maus, idle kreist es). Analog zum Magnetron.',
       pulse:   'd) Signal — ein Puls strahlt von der Quelle aus: "Signal gesendet".',
