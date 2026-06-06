@@ -29,7 +29,7 @@ const PRESETS = {
   // einheitliche Punktgroesse (3.6) ueber alle Modi -> konsistente Bildsprache
   wave:    P({ formGrid:1, waveAmp:0.34, breathe:0.15, tilt:0.55, pointSize:3.6 }),
   ring:    P({ formGrid:1, flowAmp:0.3, breathe:0.0, tilt:0.3, pointSize:3.6 }),  // antigravity: Cursor-Ring (perspektivisch)
-  ring2:   P({ formGrid:1, flowAmp:0.25, breathe:0.0, tilt:0.0, flat:1, pointSize:3.6 }),  // antigravity flach/screen-aligned (wie Google)
+  antigravity: P({ formGrid:1, flowAmp:0.0, breathe:0.0, tilt:0.0, pointSize:3.6 }),  // Dash-Partikel, wabernder Cursor-Ring
   grid:    P({ formGrid:1, waveAmp:0.10, breathe:1.0,  tilt:0.0,  flat:1, pointSize:3.6 }),
   magnet:  P({ formGrid:1, waveAmp:0.0,  breathe:0.25, tilt:0.0,  flat:1, pointSize:3.6 }),
   pulse:   P({ formGrid:1, waveAmp:0.10, breathe:0.3,  autoPulse:2.6, tilt:0.6, pointSize:3.6 }),
@@ -48,6 +48,7 @@ attribute vec2  a_uv;
 attribute vec3  a_diamond;   // Reaktor (kugeliges Kristallgitter)
 attribute vec3  a_sphere;    // Plasma-Kugel
 attribute vec3  a_gem;       // echter Diamant
+attribute vec2  a_scatter;   // verstreute Partikel (antigravity / Ring 2)
 attribute float a_rand;
 
 uniform float u_time, u_dpr, u_scale, u_pointSize;
@@ -62,6 +63,7 @@ uniform float u_tilt, u_rotY, u_spark;
 uniform float u_chainMode, u_chainPos;   // 1 = Kette "Die Linie"
 uniform float u_grow;                     // Diamant-Wachstum (0..1.1)
 uniform vec2  u_ring; uniform float u_ringAmp;   // Cursor-Ring (antigravity)
+uniform float u_scatterAmp;                       // verstreuter Antigravity-Modus (Ring 2)
 uniform mat4  u_proj, u_view;
 
 varying mediump float v_energy, v_rand, v_form, v_bright;
@@ -69,30 +71,59 @@ varying mediump float v_energy, v_rand, v_form, v_bright;
 mat3 rotX(float a){ float c=cos(a),s=sin(a); return mat3(1.,0.,0., 0.,c,-s, 0.,s,c); }
 mat3 rotY(float a){ float c=cos(a),s=sin(a); return mat3(c,0.,s, 0.,1.,0., -s,0.,c); }
 
+// Ein Ketten-Puls: beschleunigt nach rechts, blendet an den Enden weich ein/aus. strk = Speed-Streak dahinter.
+float chainPulse(float nx, float ph, out float strk) {
+  float pp = pow(ph, 1.6);                                                  // Beschleunigung nach rechts
+  float fade = smoothstep(0.0, 0.07, ph) * (1.0 - smoothstep(0.88, 1.0, ph)); // Enden weich
+  float dist = nx - pp;
+  strk = exp(-pow((dist + 0.10) * 7.0, 2.0)) * smoothstep(0.0, -0.05, dist) * fade;
+  return exp(-pow(dist * 8.0, 2.0)) * fade;
+}
+
 void main(){
+  // ===== ANTIGRAVITY (Ring 2): wenige, grosse, verstreute Partikel, viel Leerraum, nah am Nutzer =====
+  if (u_scatterAmp > 0.5) {
+    if (a_rand > 0.06) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; return; }  // duenn: ~6% sichtbar
+    vec3 sp = vec3(a_scatter, 0.0);
+    sp.xy += vec2(sin(u_time*0.3 + a_rand*60.0), cos(u_time*0.25 + a_rand*50.0)) * 0.03;          // sanfte Eigenbewegung
+    vec2 dC = sp.xy - u_ring;
+    float dist = length(dC);
+    float infl = exp(-dist * dist * 1.6);                                                          // Cursor-Einflusszone
+    sp.xy += normalize(dC + 0.0001) * infl * 0.13;                                                 // sanft wegdriften (antigravity)
+    v_energy = 0.0; v_rand = a_rand; v_form = 0.0; v_bright = 0.55 + infl * 1.3;
+    vec4 vp = u_view * vec4(sp, 1.0);
+    gl_Position = u_proj * vp;
+    gl_PointSize = (6.5 + infl * 5.0) * u_dpr * (2.6 / max(0.25, -vp.z));                          // grosse Partikel, nah
+    return;
+  }
+
   float energy = 0.0, sizeMod = 0.0, whiteLocal = 0.0, bright = 1.0;
   vec3 grid = vec3(a_uv, 0.0);
 
   if (u_chainMode > 0.5) {
     // ===== KETTE "Die Linie": ruhiges Substrat + EIN wandernder Puls =====
-    // KETTE "Die Linie": ruhiges Substrat + EIN wandernder Puls durch die Stationen
+    // KETTE — kontinuierlich: ZWEI versetzte, beschleunigende Pulse. Einer geht rechts (faded) raus,
+    // waehrend der naechste links (faded) reinkommt -> nahtlos, keine Ueberschneidung (max), mit Beschleunigung.
     float nx = clamp(a_uv.x / 1.7 * 0.5 + 0.5, 0.0, 1.0);
-    grid.z += sin(length(a_uv) * 3.0 - u_time * 0.9) * 0.035;
-    bright = 0.35;
-    float bloom = exp(-pow((nx - u_chainPos) * 7.0, 2.0));
-    float trail = smoothstep(u_chainPos, u_chainPos - 0.35, nx) * 0.18;
-    float spark = a_rand * 0.09 * sin(u_time * 20.0 + a_rand * 30.0) * (1.0 - smoothstep(0.0, 0.16, u_chainPos));
-    float guide = smoothstep(0.30, 0.55, u_chainPos) * (1.0 - smoothstep(0.55, 0.75, u_chainPos));
-    grid.z += bloom * (0.30 + spark);
-    grid.z += sin(a_uv.x * (6.0 + 10.0 * guide) - u_time * 1.8) * 0.10 * bloom;
-    bright  += bloom * 1.1 + trail;
-    sizeMod += bloom * 0.8 + trail * 0.3;
-    float ej = smoothstep(0.82, 1.0, u_chainPos);
-    float head = exp(-pow((nx - u_chainPos) * 5.0, 2.0));
-    float fly = ej * head;
-    grid.x += fly * (1.2 + 5.0 * ej) * step(0.5, nx);
-    bright  += fly * 1.3 * (1.0 - ej) - ej * head * 0.35;
-    sizeMod += fly * 1.2 * (1.0 - ej);
+    bright = 0.33;
+    grid.z += sin(length(a_uv) * 3.0 - u_time * 0.9) * 0.03;
+    float s1, s2;
+    float b1 = chainPulse(nx, fract(u_chainPos),        s1);
+    float b2 = chainPulse(nx, fract(u_chainPos + 0.5),  s2);
+    float bloom  = max(b1, b2);     // max -> keine Helligkeits-Ueberschneidung
+    float streak = max(s1, s2);
+    float spark = a_rand * 0.09 * sin(u_time*20.0 + a_rand*30.0) * smoothstep(0.16, 0.0, nx);   // 1 Strom (links)
+    grid.z += (0.30 + spark) * bloom;
+    float guide = smoothstep(0.44,0.57,nx) * (1.0 - smoothstep(0.66,0.80,nx));                   // 3 Hohlleiter
+    grid.z += sin(a_uv.x*13.0 - u_time*2.4) * 0.08 * guide * bloom;
+    float pl = smoothstep(0.60,0.72,nx) * (1.0 - smoothstep(0.86,0.96,nx));                      // 4 Plasma
+    bright += pl * bloom * 0.7;
+    whiteLocal = smoothstep(0.86, 0.98, nx) * bloom;                                             // 5 Kristall (rechts)
+    bright += bloom * 1.5;
+    sizeMod += bloom * 0.8;
+    grid.x  += streak * 0.30;       // Beschleunigungs-Streak (relaxiert, kein Atom verlaesst das Bild)
+    bright  += streak * 0.5;
+    sizeMod += streak * 0.5;
   } else {
     // ===== Normale Modi =====
     float ph = dot(a_uv, normalize(u_waveDir)) * u_waveFreq - u_time * u_waveSpeed;
@@ -158,25 +189,27 @@ void main(){
     sizeMod += push * 2.0;
   }
 
-  // Plasma: energetisch FLACKERN (pro-Partikel) — Helligkeit im selben Band wie der Rest
-  float flick = 0.5 + 0.5 * sin(u_time * 4.0 + a_rand * 55.0);
-  bright  += u_glow * (0.20 + 0.50 * flick);
-  sizeMod += u_glow * (0.15 + 0.35 * flick);
+  // Plasma: gleiche Dot-Optik wie der Rest (keine Groessen-Aenderung) — die Wolke "atmet" Helligkeit + leises Shimmer.
+  // Maus = Mikrowellen-Energie-Einkopplung: Bewegung pumpt Leistung -> Plasma agitierter/heller (fachlich korrekt).
+  float breath = 0.25 + 0.20 * sin(u_time * 1.5);
+  float shimmer = 0.12 * sin(u_time * 5.0 + a_rand * 40.0);
+  bright += u_glow * (breath + shimmer) * (1.0 + u_mouseAmp * 6.0);
 
   grid = rotX(u_tilt) * grid;
 
   mat3 obj = rotX(0.28) * rotY(u_rotY);
   vec3 dia = obj * a_diamond;
-  vec3 sph = obj * (a_sphere * (1.0 + 0.10 * sin(u_time * 3.0 + a_rand * 40.0)));  // turbulente Oberflaeche
+  vec3 sph = obj * (a_sphere * (1.0 + 0.04 * sin(u_time * 1.6 + a_rand * 20.0)));  // dezente Turbulenz
 
   // Diamant-WACHSTUM (CVD): Atome stroemen von aussen rein, wachsen vom Zentrum nach aussen an
   float tr = length(a_gem);                                       // Ziel-Radius (0 = innen, 1 = aussen)
   float lockf = smoothstep(u_grow + 0.06, u_grow - 0.06, tr);     // 1 = bereits angewachsen (Kristall)
+  float surf = smoothstep(0.55, 1.0, abs(a_gem.x) + abs(a_gem.y) + abs(a_gem.z)); // Oktaeder-Oberflaeche -> Schaerfe
   vec3 gasPos = a_gem * (1.8 + 0.6 * sin(u_time * 0.6 + a_rand * 25.0))
               + vec3(sin(u_time*0.9 + a_rand*40.0), cos(u_time*1.1 + a_rand*30.0), sin(u_time*0.7 + a_rand*20.0)) * 0.2;
   vec3 gem = obj * (mix(gasPos, a_gem, lockf) * 1.15);
-  float gemLock = u_formGem * lockf;
-  bright += u_formGem * (0.45 * lockf - 0.45 * (1.0 - lockf));    // Kristall hell, Gas dim
+  float gemLock = u_formGem * lockf * (0.4 + 0.6 * surf);          // Oberflaeche eisiger
+  bright += u_formGem * (lockf * (surf * 0.8 - (1.0 - surf) * 0.35) - (1.0 - lockf) * 0.4); // Facetten scharf, Inneres/Gas gedimmt
 
   vec3 pos = grid * u_formGrid + dia * u_formReaktor + sph * u_formSphere + gem * u_formGem;
   pos *= u_scale;
@@ -212,6 +245,33 @@ void main(){
 const BG_VERT = `attribute vec2 p; varying mediump vec2 v; void main(){ v = p*0.5+0.5; gl_Position = vec4(p,0.,1.); }`;
 const BG_FRAG = `precision mediump float; varying mediump vec2 v; uniform vec3 u_top,u_bot;
   void main(){ float t = smoothstep(0.0,1.0,1.0-v.y); gl_FragColor = vec4(mix(u_bot,u_top,t),1.0); }`;
+
+// ---- Dash-Partikel (Antigravity / Ring 2): orientierte Striche im Flow-Feld + Cursor-Wirbel ----
+const DASH_VERT = `
+precision highp float;
+attribute vec2 a_base; attribute float a_side; attribute float a_rand;
+uniform float u_time, u_dpr; uniform vec2 u_ring; uniform mat4 u_proj, u_view;
+varying float v_b, v_r;
+void main(){
+  vec2 pos = a_base;
+  pos += vec2(sin(u_time*0.25 + a_rand*60.0), cos(u_time*0.22 + a_rand*50.0)) * 0.05;     // sanfte Drift
+  vec2 dC = pos - u_ring; float dist = length(dC); float ang = atan(dC.y, dC.x);
+  float R = 0.42 + 0.07 * sin(ang * 5.0 + u_time * 2.2);                                   // WABERNDER Ring
+  float ringBand = exp(-pow((dist - R) * 4.5, 2.0));                                       // Aktivierung am Ring
+  float near = exp(-dist * dist * 1.6);                                                    // generelle Naehe
+  float fa = sin(a_base.x*0.7 + a_base.y*0.9 + u_time*0.25 + a_rand*6.2831) * 3.1416;      // Flow-Feld
+  vec2 dir = normalize(mix(vec2(cos(fa), sin(fa)), normalize(vec2(-dC.y, dC.x)+0.0001), clamp(ringBand+near,0.0,1.0)));
+  pos += normalize(dC + 0.0001) * (ringBand * 0.12 + near * 0.10);                         // wegdriften (antigravity)
+  float len = 0.05 + ringBand * 0.06;
+  vec2 p = pos + dir * a_side * len;
+  v_b = 0.10 + ringBand * 1.4 + near * 0.5;                                                // aussen fast dunkel, am Ring hell
+  v_r = a_rand;
+  gl_Position = u_proj * (u_view * vec4(p, 0.0, 1.0));
+}`;
+const DASH_FRAG = `
+precision mediump float; varying float v_b, v_r;
+uniform vec3 u_cyan, u_green;
+void main(){ vec3 col = mix(u_cyan, u_green, step(0.78, v_r) * 0.5); gl_FragColor = vec4(col * v_b, 1.0); }`;
 
 // =============================================================================
 //  Helfer
@@ -274,6 +334,11 @@ function buildSphere(n) {  // Plasma-Kugel
   }
   return out;
 }
+function buildScatter(n) {  // verstreute Partikel-Positionen (Antigravity / Ring 2)
+  const rg = mulberry32(404), out = new Float32Array(n * 2);
+  for (let i = 0; i < n; i++) { out[i*2] = (rg()*2-1) * 1.9; out[i*2+1] = (rg()*2-1) * 1.15; }
+  return out;
+}
 function buildGem(n) {  // SOLIDER Oktaeder (Diamant-Habit, Volumen) — fuer das Schicht-Wachstum
   const rg = mulberry32(7);
   const out = new Float32Array(n * 3);
@@ -310,6 +375,7 @@ export function createWaveField(canvas, opts = {}) {
   const dia = buildDiamond(N);
   const sph = buildSphere(N);
   const gem = buildGem(N);
+  const scatter = buildScatter(N);
   const rand = new Float32Array(N);
   for (let i=0;i<N;i++) rand[i] = rnd();
 
@@ -317,18 +383,18 @@ export function createWaveField(canvas, opts = {}) {
   const bg = program(gl, BG_VERT, BG_FRAG);
 
   const buf = (data) => { const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW); return b; };
-  const bUv = buf(uv), bDia = buf(dia), bSph = buf(sph), bGem = buf(gem), bRand = buf(rand);
+  const bUv = buf(uv), bDia = buf(dia), bSph = buf(sph), bGem = buf(gem), bScatter = buf(scatter), bRand = buf(rand);
   const bQuad = buf(new Float32Array([-1,-1, 3,-1, -1,3]));
 
   const A = (n) => gl.getAttribLocation(prog, n);
   const U = (n) => gl.getUniformLocation(prog, n);
   const loc = {
-    a_uv:A('a_uv'), a_diamond:A('a_diamond'), a_sphere:A('a_sphere'), a_gem:A('a_gem'), a_rand:A('a_rand'),
+    a_uv:A('a_uv'), a_diamond:A('a_diamond'), a_sphere:A('a_sphere'), a_gem:A('a_gem'), a_scatter:A('a_scatter'), a_rand:A('a_rand'),
     time:U('u_time'), dpr:U('u_dpr'), scale:U('u_scale'), pointSize:U('u_pointSize'),
     formGrid:U('u_formGrid'), formReaktor:U('u_formReaktor'), formSphere:U('u_formSphere'), formGem:U('u_formGem'),
     waveAmp:U('u_waveAmp'), waveFreq:U('u_waveFreq'), waveSpeed:U('u_waveSpeed'),
     breathe:U('u_breathe'), flat:U('u_flat'), glow:U('u_glow'), flowAmp:U('u_flowAmp'), waveDir:U('u_waveDir'),
-    ring:U('u_ring'), ringAmp:U('u_ringAmp'),
+    ring:U('u_ring'), ringAmp:U('u_ringAmp'), scatterAmp:U('u_scatterAmp'),
     pulseT:U('u_pulseT'), pulseAmp:U('u_pulseAmp'), pulseCenter:U('u_pulseCenter'),
     mouse:U('u_mouse'), mouseAmp:U('u_mouseAmp'),
     magCenter:U('u_magCenter'), magAmp:U('u_magAmp'),
@@ -339,12 +405,29 @@ export function createWaveField(canvas, opts = {}) {
   };
   const bgLoc = { p:gl.getAttribLocation(bg,'p'), top:gl.getUniformLocation(bg,'u_top'), bot:gl.getUniformLocation(bg,'u_bot') };
 
+  // Dash-Geometrie (Ring 2): M Striche, je 2 Vertices
+  const M = 600;
+  const dBase = new Float32Array(M*2*2), dSide = new Float32Array(M*2), dRand = new Float32Array(M*2);
+  const rgd = mulberry32(404);
+  for (let i = 0; i < M; i++) {
+    const x = (rgd()*2-1)*2.4, y = (rgd()*2-1)*1.4, rr = rgd();
+    for (let e = 0; e < 2; e++) { const k = i*2+e; dBase[k*2]=x; dBase[k*2+1]=y; dSide[k]=e?0.5:-0.5; dRand[k]=rr; }
+  }
+  const bDBase = buf(dBase), bDSide = buf(dSide), bDRand = buf(dRand);
+  const dashProg = program(gl, DASH_VERT, DASH_FRAG);
+  const dloc = {
+    base:gl.getAttribLocation(dashProg,'a_base'), side:gl.getAttribLocation(dashProg,'a_side'), rand:gl.getAttribLocation(dashProg,'a_rand'),
+    time:gl.getUniformLocation(dashProg,'u_time'), dpr:gl.getUniformLocation(dashProg,'u_dpr'), ring:gl.getUniformLocation(dashProg,'u_ring'),
+    proj:gl.getUniformLocation(dashProg,'u_proj'), view:gl.getUniformLocation(dashProg,'u_view'),
+    cyan:gl.getUniformLocation(dashProg,'u_cyan'), green:gl.getUniformLocation(dashProg,'u_green'),
+  };
+
   const cur = Object.assign({}, PRESETS.wave);
   const tgt = Object.assign({}, PRESETS.wave);
   let modeName = 'wave';
   let chainOn = false, chainP = 0, chainAuto = false;
   let magnetOn = false, magCenter = [0, 0];
-  let ringOn = false, ringPos = [0, 0];
+  let ringOn = false, ringPos = [0, 0], scatterOn = false;
   let growT = 0, growVal = 1.12;
   let mouse = [0,0], mouseAmp = 0;
   let pulseStart = -10, lastPulse = 0;
@@ -356,11 +439,12 @@ export function createWaveField(canvas, opts = {}) {
   const setTargets = (o) => { for (const k in o) tgt[k] = o[k]; };
 
   function setMode(name) {
-    chainAuto = false; chainOn = false; magnetOn = false; ringOn = false;
+    chainAuto = false; chainOn = false; magnetOn = false; ringOn = false; scatterOn = false;
     if (name === 'chain') { chainOn = true; chainAuto = true; chainP = 0; modeName = name; setTargets(CHAIN_BASE); return; }
     if (!PRESETS[name]) return;
     if (name === 'magnet') magnetOn = true;
-    if (name === 'ring' || name === 'ring2') ringOn = true;
+    if (name === 'ring') ringOn = true;
+    if (name === 'antigravity') { ringOn = true; scatterOn = true; }   // Dash-Partikel + wabernder Cursor-Ring
     if (name === 'gem') growT = 0;   // Wachstum von vorne starten
     modeName = name; setTargets(PRESETS[name]);
   }
@@ -404,7 +488,7 @@ export function createWaveField(canvas, opts = {}) {
     if (!running || !visible) return;
     T += dt;
 
-    if (chainAuto) chainP = (chainP + dt / 11) % 1.18;   // 1.0..1.18 = ruhiger Moment vor dem Loop
+    if (chainAuto) chainP = (chainP + dt / 11) % 1;   // nahtlos: Puls wrappt periodisch
     if (chainOn && onChain) onChain(chainP);
 
     const k = 1 - Math.pow(0.001, dt);
@@ -433,9 +517,20 @@ export function createWaveField(canvas, opts = {}) {
     gl.drawArrays(gl.TRIANGLES, 0, 3);
 
     gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+
+    if (scatterOn) {  // Ring 2 = Dash-Partikel (Linien) statt Punkte
+      gl.useProgram(dashProg);
+      bindAttr(dloc.base, bDBase, 2); bindAttr(dloc.side, bDSide, 1); bindAttr(dloc.rand, bDRand, 1);
+      gl.uniform1f(dloc.time, T); gl.uniform1f(dloc.dpr, DPR); gl.uniform2f(dloc.ring, ringPos[0], ringPos[1]);
+      gl.uniformMatrix4fv(dloc.proj, false, proj); gl.uniformMatrix4fv(dloc.view, false, view);
+      gl.uniform3fv(dloc.cyan, colors.cyan); gl.uniform3fv(dloc.green, colors.green);
+      gl.drawArrays(gl.LINES, 0, M * 2);
+      return;
+    }
+
     gl.useProgram(prog);
     bindAttr(loc.a_uv, bUv, 2); bindAttr(loc.a_diamond, bDia, 3); bindAttr(loc.a_sphere, bSph, 3);
-    bindAttr(loc.a_gem, bGem, 3); bindAttr(loc.a_rand, bRand, 1);
+    bindAttr(loc.a_gem, bGem, 3); bindAttr(loc.a_scatter, bScatter, 2); bindAttr(loc.a_rand, bRand, 1);
 
     gl.uniform1f(loc.time, T); gl.uniform1f(loc.dpr, DPR); gl.uniform1f(loc.scale, fieldScale);
     gl.uniform1f(loc.pointSize, cur.pointSize);
@@ -449,6 +544,7 @@ export function createWaveField(canvas, opts = {}) {
     gl.uniform2f(loc.mouse, mouse[0], mouse[1]); gl.uniform1f(loc.mouseAmp, mouseAmp);
     gl.uniform2f(loc.magCenter, magCenter[0], magCenter[1]); gl.uniform1f(loc.magAmp, magnetOn ? 0.6 : 0);
     gl.uniform2f(loc.ring, ringPos[0], ringPos[1]); gl.uniform1f(loc.ringAmp, ringOn ? 1 : 0);
+    gl.uniform1f(loc.scatterAmp, scatterOn ? 1 : 0);
     gl.uniform1f(loc.tilt, cur.tilt); gl.uniform1f(loc.rotY, rotY); gl.uniform1f(loc.spark, spark);
     gl.uniform1f(loc.chainMode, chainOn ? 1 : 0); gl.uniform1f(loc.chainPos, chainP); gl.uniform1f(loc.grow, growVal);
     gl.uniformMatrix4fv(loc.proj, false, proj); gl.uniformMatrix4fv(loc.view, false, view);
@@ -470,8 +566,8 @@ export function createWaveField(canvas, opts = {}) {
       cancelAnimationFrame(raf); ro.disconnect(); io.disconnect();
       document.removeEventListener('visibilitychange', onVis);
       canvas.removeEventListener('mousemove', onMove); canvas.removeEventListener('click', onClick);
-      [bUv, bDia, bSph, bGem, bRand, bQuad].forEach((b) => gl.deleteBuffer(b));
-      gl.deleteProgram(prog); gl.deleteProgram(bg);
+      [bUv, bDia, bSph, bGem, bScatter, bRand, bQuad, bDBase, bDSide, bDRand].forEach((b) => gl.deleteBuffer(b));
+      gl.deleteProgram(prog); gl.deleteProgram(bg); gl.deleteProgram(dashProg);
     },
   };
 }
