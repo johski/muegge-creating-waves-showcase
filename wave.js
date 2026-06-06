@@ -71,15 +71,6 @@ varying mediump float v_energy, v_rand, v_form, v_bright;
 mat3 rotX(float a){ float c=cos(a),s=sin(a); return mat3(1.,0.,0., 0.,c,-s, 0.,s,c); }
 mat3 rotY(float a){ float c=cos(a),s=sin(a); return mat3(c,0.,s, 0.,1.,0., -s,0.,c); }
 
-// Ein Ketten-Puls: beschleunigt nach rechts, blendet an den Enden weich ein/aus. strk = Speed-Streak dahinter.
-float chainPulse(float nx, float ph, out float strk) {
-  float pp = pow(ph, 1.6);                                                  // Beschleunigung nach rechts
-  float fade = smoothstep(0.0, 0.07, ph) * (1.0 - smoothstep(0.88, 1.0, ph)); // Enden weich
-  float dist = nx - pp;
-  strk = exp(-pow((dist + 0.10) * 7.0, 2.0)) * smoothstep(0.0, -0.05, dist) * fade;
-  return exp(-pow(dist * 8.0, 2.0)) * fade;
-}
-
 void main(){
   // ===== ANTIGRAVITY (Ring 2): wenige, grosse, verstreute Partikel, viel Leerraum, nah am Nutzer =====
   if (u_scatterAmp > 0.5) {
@@ -102,28 +93,26 @@ void main(){
 
   if (u_chainMode > 0.5) {
     // ===== KETTE "Die Linie": ruhiges Substrat + EIN wandernder Puls =====
-    // KETTE — kontinuierlich: ZWEI versetzte, beschleunigende Pulse. Einer geht rechts (faded) raus,
-    // waehrend der naechste links (faded) reinkommt -> nahtlos, keine Ueberschneidung (max), mit Beschleunigung.
+    // KETTE — EIN Komet, periodisch nahtlos (kein Cut, keine Ueberschneidung). Helligkeit traegt den Puls,
+    // z bleibt klein (KEINE vertikalen Falten). Asym. Schweif + Speed-Streak = Richtung/Tempo.
     float nx = clamp(a_uv.x / 1.7 * 0.5 + 0.5, 0.0, 1.0);
-    bright = 0.33;
-    grid.z += sin(length(a_uv) * 3.0 - u_time * 0.9) * 0.03;
-    float s1, s2;
-    float b1 = chainPulse(nx, fract(u_chainPos),        s1);
-    float b2 = chainPulse(nx, fract(u_chainPos + 0.5),  s2);
-    float bloom  = max(b1, b2);     // max -> keine Helligkeits-Ueberschneidung
-    float streak = max(s1, s2);
-    float spark = a_rand * 0.09 * sin(u_time*20.0 + a_rand*30.0) * smoothstep(0.16, 0.0, nx);   // 1 Strom (links)
-    grid.z += (0.30 + spark) * bloom;
+    bright = 0.30;
+    float d  = nx - u_chainPos;
+    float dd = d - floor(d + 0.5);                          // periodisch [-0.5, 0.5] -> nahtloser Loop
+    float sig = dd > 0.0 ? 0.05 : 0.16;                     // Komet: vorne scharf, hinten langer Schweif
+    float bloom = exp(-pow(dd / sig, 2.0) * 0.5);
+    float spark = a_rand * 0.09 * sin(u_time*20.0 + a_rand*30.0) * smoothstep(0.16, 0.0, nx);   // 1 Strom
+    grid.z += (0.06 + spark) * bloom;                       // nur dezente Welle, KEINE Falte
     float guide = smoothstep(0.44,0.57,nx) * (1.0 - smoothstep(0.66,0.80,nx));                   // 3 Hohlleiter
-    grid.z += sin(a_uv.x*13.0 - u_time*2.4) * 0.08 * guide * bloom;
+    grid.z += sin(a_uv.x*13.0 - u_time*2.4) * 0.05 * guide * bloom;
     float pl = smoothstep(0.60,0.72,nx) * (1.0 - smoothstep(0.86,0.96,nx));                      // 4 Plasma
-    bright += pl * bloom * 0.7;
-    whiteLocal = smoothstep(0.86, 0.98, nx) * bloom;                                             // 5 Kristall (rechts)
-    bright += bloom * 1.5;
-    sizeMod += bloom * 0.8;
-    grid.x  += streak * 0.30;       // Beschleunigungs-Streak (relaxiert, kein Atom verlaesst das Bild)
-    bright  += streak * 0.5;
-    sizeMod += streak * 0.5;
+    bright += pl * bloom * 0.6;
+    whiteLocal = smoothstep(0.86, 0.98, nx) * bloom;                                             // 5 Kristall
+    bright += bloom * 1.7;
+    sizeMod += bloom * 0.7;
+    float streak = exp(-pow((dd + 0.12) / 0.10, 2.0) * 0.5) * smoothstep(0.0, -0.04, dd);        // Speed-Streak (relaxiert)
+    grid.x += streak * 0.26;
+    bright += streak * 0.4;
   } else {
     // ===== Normale Modi =====
     float ph = dot(a_uv, normalize(u_waveDir)) * u_waveFreq - u_time * u_waveSpeed;
@@ -148,16 +137,17 @@ void main(){
       bright += (0.10 + 0.10 * sin(u_time*0.6 + a_rand*6.2831)) * u_flowAmp;
     }
 
-    // Cursor-Ring (antigravity): wabernder Ring, der dem Cursor smooth + leicht verzoegert folgt
+    // Ring = integrierte Dots-Antigravity: wabernder Cursor-Ring auf dem Grid, aussen gedimmt (morpht mit allen)
     if (u_ringAmp > 0.0) {
       vec2 dr = a_uv - u_ring;
       float dist = length(dr);
       float ang = atan(dr.y, dr.x);
-      float R = 0.55 + 0.05 * sin(ang * 5.0 + u_time * 2.0);   // leicht wabernder Radius
-      float ring = exp(-pow((dist - R) * 5.0, 2.0));
-      grid.z  += ring * 0.18;
-      grid.xy += normalize(dr + 0.0001) * ring * 0.05;
-      bright  += ring * 1.4;
+      float R = 0.50 + 0.07 * sin(ang * 5.0 + u_time * 2.2);   // wabernder Radius
+      float ring = exp(-pow((dist - R) * 4.5, 2.0));
+      float near = exp(-dist * dist * 1.6);
+      grid.z  += ring * 0.15;
+      grid.xy += normalize(dr + 0.0001) * ring * 0.06;
+      bright = 0.18 + ring * 1.6 + near * 0.5;                 // aussen gedimmt, Ring hell
       sizeMod += ring * 1.0;
     }
 
@@ -219,9 +209,14 @@ void main(){
   v_form   = clamp(u_formReaktor + gemLock + whiteLocal, 0.0, 1.0);  // nur angewachsene Atome = eisiger Kristall
   v_bright = bright;
 
+  // luftiger machen: Plasma + Diamant-Inneres ausduennen -> gleiche Dichte-Anmutung wie die Felder
+  float vis = 1.0;
+  if (u_formSphere > 0.5 && a_rand > 0.5) vis = 0.0;                 // Plasma ~50% ausgeduennt
+  if (u_formGem > 0.5 && surf < 0.45 && a_rand > 0.3) vis = 0.0;     // Diamant: Inneres weg, Oberflaeche bleibt
+
   vec4 viewPos = u_view * vec4(pos, 1.0);
   gl_Position  = u_proj * viewPos;
-  gl_PointSize = u_pointSize * u_dpr * (2.6 / max(0.25, -viewPos.z)) * (1.0 + max(0.0, sizeMod));
+  gl_PointSize = vis * u_pointSize * u_dpr * (2.6 / max(0.25, -viewPos.z)) * (1.0 + max(0.0, sizeMod));
 }`;
 
 const FRAG = `
