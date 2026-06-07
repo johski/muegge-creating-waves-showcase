@@ -36,9 +36,9 @@
   .panel .scrub.show { display:flex; }
   .panel input[type=range] { width:130px; accent-color:var(--cyan); }
 
-  .caption { position:fixed; left:50%; bottom:10.2rem; transform:translateX(-50%); z-index:11; font-size:.82rem; color:var(--muted); text-align:center; max-width:70ch; padding:0 1rem; line-height:1.4; }
+  .caption { width:100%; text-align:center; font-size:.78rem; color:var(--muted); line-height:1.35; margin:0 0 .4rem; padding:0 .5rem; }
   /* Stations-Labels (nur Kette B) */
-  .stations { position:fixed; left:50%; bottom:13rem; transform:translateX(-50%); z-index:11; display:none; gap:1.4rem; font-size:.7rem; letter-spacing:.06em; text-transform:uppercase; }
+  .stations { width:100%; display:none; justify-content:center; gap:1.4rem; font-size:.7rem; letter-spacing:.06em; text-transform:uppercase; margin-bottom:.25rem; }
   .stations.show { display:flex; }
   .stations span { color:var(--muted); transition:.25s ease; opacity:.5; }
   .stations span.on { color:var(--cyan); opacity:1; text-shadow:0 0 12px rgba(96,198,240,.6); }
@@ -57,12 +57,12 @@
   </section>
 
   <p class="hint" id="hint"></p>
-  <div class="stations" id="stations">
-    <span>Generator</span><span>Magnetron</span><span>Hohlleiter</span><span>Plasma</span><span>Kristall</span>
-  </div>
-  <div class="caption" id="caption"></div>
 
   <nav class="panel" id="panel">
+    <div class="stations" id="stations">
+      <span>Generator</span><span>Magnetron</span><span>Hohlleiter</span><span>Plasma</span><span>Kristall</span>
+    </div>
+    <div class="caption" id="caption"></div>
     <button data-mode="wave">Wave</button>
     <button data-mode="ring">Ring</button>
     <button data-mode="agdots">Partikel</button>
@@ -100,27 +100,27 @@
     catch (e) { showErr('import wave.js', e); throw e; }
 
     const CAPTIONS = {
-      wave:    'a) Mikrowelle — eine Sinus-Wellenfront laeuft durchs Feld. Der Hero-Default.',
-      ring:    'Ring — Cursor-Ring auf dem Grid (morpht mit allen Modi), aussen gedimmt. Maus bewegen!',
-      agdots:  'Partikel — wenige grosse, verstreute Partikel im Feld; aussen leer, am Cursor ein wabernder Ring. Maus bewegen!',
-      antigravity: 'Feldlinien — orientierte Striche wie elektromagnetische Feldlinien im Flow-Feld, am Cursor wirbelnder Ring. Maus bewegen!',
-      grid:    'c1) Grid — echtes Top-Down: ruhig atmendes Punktefeld (Prozess-Flaeche / Wafer).',
-      magnet:  'Magnet — ein Feld schiebt die Atome auseinander (folgt der Maus, idle kreist es). Analog zum Magnetron.',
-      pulse:   'd) Signal — ein Puls strahlt von der Quelle aus: "Signal gesendet".',
-      gem:     'f) Diamant — CVD-Wachstum: Atome stroemen rein und wachsen Schicht fuer Schicht zum Kristall (Loop).',
-      reaktor: 'f) Reaktor — strahlender Kristall-Kern (die fruehere Diamant-Form, behalten).',
-      plasma:  'f) Plasma — leuchtende, pulsierende Plasma-Kugel ("das Herz").',
-      molecule:  'Molekül-Spaltung (Power-to-X) — Mikrowellen spalten CO₂/CH₄: Molekuele brechen in Radikale auf. Cursor spaltet lokal.',
-      wafer:     'Wafer-Reinigung — Downstream-Plasma putzt den Wafer atomweise frei ("wie von Geisterhand"). Cursor reinigt.',
-      interfere: 'Stehende Welle — zwei Mikrowellen-Quellen erzeugen ein Interferenzmuster. Cursor = zweite Quelle.',
-      beam:      'Beamforming — ein Antennen-Array lenkt einen Mikrowellen-Strahl. Cursor steuert die Richtung.',
-      ignite:    'Zündung — ruhige Gas-Wolke: BLITZ zündet → Partikel werden ionisiert (turbulent, dehnen sich) → Plasma-Glühen → Abklingen (Loop).',
-      globe:     'Globales Netz — MUEGGE liefert in 40+ Laender. Klick = ein Signal breitet sich ueber den Globus aus (Broadcast).',
-      swarm:     'Schwarm — die Partikel finden aus dem Chaos zur MUEGGE-Wortmarke (Loop).',
-      blob:      'Blob — organisch morphende Dot-Kugel (cyan), langsam rotierend. Cursor verformt sie.',
-      distort:   'Distort (Dimorph) — idle = still; nur Mausbewegung verformt (Impuls). Cursor links↔rechts = Staerke, oben↔unten = Twist/Drehung.',
-      chain:   'Kette — "creating waves / Power to your projects": Mikrowellen-Leistung baut sich auf, buendelt + beschleunigt und wird als Welle nach aussen abgestrahlt. Slider = Scroll.',
-      chain2:  'Signal-Kette — die Komplettkette aus einer Hand: ein Signal laeuft durch alle Stationen (Generator → … → Kristall). Slider = Scroll.',
+      wave:    'Mikrowelle — eine Sinus-Wellenfront läuft durchs Feld.',
+      ring:    'Ring — ein wabernder Cursor-Ring auf dem Punktefeld.',
+      agdots:  'Partikel — verstreute Partikel im Feld, am Cursor ein wabernder Ring.',
+      antigravity: 'Feldlinien — orientierte Striche im Flow-Feld, wirbeln am Cursor.',
+      grid:    'Grid — ruhig atmendes Punktefeld von oben (Prozess-Fläche / Wafer).',
+      magnet:  'Magnet — der Cursor schiebt die Partikel auseinander (Magnetron).',
+      pulse:   'Signal — ein Puls strahlt von der Quelle aus.',
+      gem:     'Diamant — CVD-Wachstum: Atome wachsen Schicht für Schicht zum Kristall.',
+      reaktor: 'Reaktor — ein strahlender Kristall-Kern.',
+      plasma:  'Plasma — wabernde, leuchtende Plasma-Kugel; der Cursor verformt sie.',
+      molecule:  'Molekül — Mikrowellen spalten Moleküle in Radikale (Power-to-X).',
+      wafer:     'Wafer — Downstream-Plasma reinigt den Wafer atomgenau.',
+      interfere: 'Interferenz — zwei Mikrowellen-Quellen, stehende Welle (Cursor = 2. Quelle).',
+      beam:      'Beam — ein Antennen-Array lenkt einen Strahl; der Cursor steuert.',
+      ignite:    'Zündung — kalte Gas-Wolke zündet, ionisiert, glüht, klingt ab.',
+      globe:     'Globus — Lieferung in 40+ Länder; Klick sendet ein Signal.',
+      swarm:     'Schwarm — die Partikel finden zur MUEGGE-Wortmarke.',
+      blob:      'Blob — organisch morphende Dot-Kugel; der Cursor verformt sie.',
+      distort:   'Distort — Mausbewegung verzerrt die Kugel (links↔rechts Stärke, oben↔unten Twist).',
+      chain:   'Kette — Mikrowellen-Leistung baut sich auf und wird abgestrahlt („creating waves“).',
+      chain2:  'Signal-Kette — ein Signal läuft durch die Komplettkette (Generator → … → Kristall).',
     };
 
     // Interaktions-Hinweis je Modus (oben rechts) — nur was wirklich reagiert
