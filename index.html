@@ -26,9 +26,9 @@
   .panel { position:fixed; left:50%; bottom:1.4rem; transform:translateX(-50%); z-index:10;
     display:flex; flex-wrap:wrap; gap:.3rem; align-items:center; justify-content:center;
     padding:.55rem .6rem; border:1px solid rgba(96,198,240,.25); background:rgba(10,21,35,.78);
-    backdrop-filter:blur(10px); border-radius:3px; max-width:96vw; }
-  .panel button { font:inherit; font-size:.76rem; font-weight:500; letter-spacing:.03em; color:var(--text);
-    background:transparent; border:1px solid transparent; padding:.45rem .7rem; cursor:pointer; border-radius:2px; transition:.2s ease; white-space:nowrap; }
+    backdrop-filter:blur(10px); border-radius:3px; max-width:99vw; }
+  .panel button { font:inherit; font-size:.73rem; font-weight:500; letter-spacing:.02em; color:var(--text);
+    background:transparent; border:1px solid transparent; padding:.4rem .6rem; cursor:pointer; border-radius:2px; transition:.2s ease; white-space:nowrap; }
   .panel button:hover { color:#fff; background:rgba(96,198,240,.12); }
   .panel button.active { color:var(--ink); background:var(--cyan); font-weight:700; }
   .panel .sep { width:1px; height:22px; background:rgba(255,255,255,.14); margin:0 .25rem; }
@@ -36,9 +36,9 @@
   .panel .scrub.show { display:flex; }
   .panel input[type=range] { width:130px; accent-color:var(--cyan); }
 
-  .caption { position:fixed; left:50%; bottom:7rem; transform:translateX(-50%); z-index:9; font-size:.82rem; color:var(--muted); text-align:center; max-width:70ch; padding:0 1rem; line-height:1.4; }
+  .caption { position:fixed; left:50%; bottom:10.2rem; transform:translateX(-50%); z-index:11; font-size:.82rem; color:var(--muted); text-align:center; max-width:70ch; padding:0 1rem; line-height:1.4; }
   /* Stations-Labels (nur Kette B) */
-  .stations { position:fixed; left:50%; bottom:10rem; transform:translateX(-50%); z-index:9; display:none; gap:1.4rem; font-size:.7rem; letter-spacing:.06em; text-transform:uppercase; }
+  .stations { position:fixed; left:50%; bottom:13rem; transform:translateX(-50%); z-index:11; display:none; gap:1.4rem; font-size:.7rem; letter-spacing:.06em; text-transform:uppercase; }
   .stations.show { display:flex; }
   .stations span { color:var(--muted); transition:.25s ease; opacity:.5; }
   .stations span.on { color:var(--cyan); opacity:1; text-shadow:0 0 12px rgba(96,198,240,.6); }
@@ -114,7 +114,7 @@
       wafer:     'Wafer-Reinigung — Downstream-Plasma putzt den Wafer atomweise frei ("wie von Geisterhand"). Cursor reinigt.',
       interfere: 'Stehende Welle — zwei Mikrowellen-Quellen erzeugen ein Interferenzmuster. Cursor = zweite Quelle.',
       beam:      'Beamforming — ein Antennen-Array lenkt einen Mikrowellen-Strahl. Cursor steuert die Richtung.',
-      ignite:    'Zündung — dunkel/kalt → BLITZ (Zündung) → leuchtende Plasma-Wolke → Radikale stroemen nach aussen ab (Loop).',
+      ignite:    'Zündung — dunkle Gas-Wolke: fast dunkel → scharfer BLITZ → pulsierendes Plasma-Glühen → dunkel (Loop).',
       globe:     'Globales Netz — MUEGGE liefert in 40+ Laender. Klick = ein Signal breitet sich ueber den Globus aus (Broadcast).',
       swarm:     'Schwarm — die Partikel finden aus dem Chaos zur MUEGGE-Wortmarke (Loop).',
       blob:      'Blob — organisch morphende Dot-Kugel (cyan), langsam rotierend. Cursor verformt sie.',

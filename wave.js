@@ -189,17 +189,15 @@ void main(){
       float along = dot(a_uv, bd);
       float puls = exp(-pow(along - fract(u_time*0.5)*3.0, 2.0) * 3.0);
       b = 0.26 + lobe*(1.2 + puls*1.6); sm = lobe*0.6;
-    } else if (u_concept < 5.5) {                                      // 5 ZUENDUNG: dunkel -> BLITZ -> Plasma-Wolke -> Radikale stroemen ab
-      tiltC = 0.5;
-      float t = fract(u_time*0.16);
-      float flash = exp(-pow((t-0.20)/0.022, 2.0) * 0.5);             // Zuend-Blitz (frueh)
-      float glow  = smoothstep(0.20, 0.32, t) * (1.0 - smoothstep(0.55, 0.75, t));  // ruhige Plasma-Wolke
-      float diss  = smoothstep(0.6, 1.0, t);                          // DANACH: Radikale stroemen nach aussen ab
-      vec2 od = normalize(a_uv + vec2(0.0001));
-      p.xy += od * diss * 0.6;                                        // Dispersion nach der Zuendung (nicht davor)
-      p.z  += glow * (a_rand - 0.5) * 0.08;
-      b = (0.10 + flash*3.5 + glow*1.0) * (1.0 - diss*0.85);         // dunkel -> Blitz -> Glow -> verblasst
-      sm = flash*1.2 + glow*0.3;
+    } else if (u_concept < 5.5) {                                      // 5 ZUENDUNG: dunkle Gas-Wolke -> BLITZ -> pulsierendes Plasma -> dunkel
+      vec3 cloud = a_sphere * (0.92 + 0.12 * cnoise(a_sphere * 2.0 + vec3(u_time * 0.15)));  // lockere Gas-Wolke
+      p = rotX(0.2) * (rotY(u_time * 0.05) * cloud);
+      float t = fract(u_time * 0.14);                                  // ~7s Zyklus
+      float flash = exp(-pow((t - 0.16) / 0.02, 2.0) * 0.5);          // scharfe Zuendung
+      float glow  = smoothstep(0.16, 0.26, t) * (1.0 - smoothstep(0.55, 0.82, t)) * (0.8 + 0.2*sin(u_time*4.0));  // pulsierendes Plasma
+      b = 0.05 + flash * 4.0 + glow * 1.1;                            // fast dunkel -> Blitz -> Glow -> dunkel
+      sm = flash * 1.0 + glow * 0.3;
+      tiltC = 0.0;
     } else if (u_concept < 6.5) {                                      // 6 GLOBALES NETZ (40+ Laender)
       vec3 g = rotX(0.3) * (rotY(u_time*0.07) * a_sphere);            // langsame Rotation
       p = g;
