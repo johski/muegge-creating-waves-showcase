@@ -86,6 +86,17 @@
     <button data-mode="strudel">Strudel</button>
     <button data-mode="blackhole">Schwarzes Loch</button>
     <span class="sep"></span>
+    <button data-mode="mist">Nebel</button>
+    <button data-mode="repel">Interaktiv</button>
+    <button data-mode="bounce">Bouncing</button>
+    <button data-mode="constellation">Konstellation</button>
+    <button data-mode="resonance">Resonanz</button>
+    <button data-mode="freeze">Erstarrung</button>
+    <button data-mode="shock">Schockwelle</button>
+    <button data-mode="ironfilings">Feilspäne</button>
+    <button data-mode="waferscan">Wafer-Scan</button>
+    <button data-mode="aggregate">Aggregation</button>
+    <span class="sep"></span>
     <button data-mode="chain">▶ Kette</button>
     <button data-mode="chain2">▶ Signal-Kette</button>
     <span class="scrub" id="scrub"><input type="range" min="0" max="1" step="0.001" value="0" id="range" /></span>
@@ -121,8 +132,18 @@
       swarm:     'Schwarm — die Partikel finden zur MUEGGE-Wortmarke.',
       blob:      'Blob — organisch morphende Dot-Kugel; der Cursor verformt sie.',
       distort:   'Distort — Mausbewegung verzerrt die Kugel (links↔rechts Stärke, oben↔unten Twist).',
-      strudel:   'Strudel — statisches Feld; bei Mausbewegung wird es zum Wirbel und nach unten gezogen.',
-      blackhole: 'Schwarzes Loch — Partikel spiralen in das Zentrum (folgt dem Cursor) und verschwinden am Horizont.',
+      strudel:   'Strudel — ein 3D-Whirlpool zieht das Feld in einen Trichter; die Maus verstärkt den Sog.',
+      blackhole: 'Schwarzes Loch — Partikel werden langsam rotierend ins Loch gesogen und verschwinden am Horizont.',
+      mist:          'Nebel — feiner violetter Partikel-Nebel, der in Strähnen durchs Feld strömt (Curl-Flow).',
+      repel:         'Interaktiv — ruhiges Feld; nur der Cursor stößt die Partikel weg, idle bleibt es still.',
+      bounce:        'Bouncing — Partikel prallen frei im Feld umher; der Cursor schubst sie leicht weg.',
+      constellation: 'Konstellation — ein organisch fließender Dot-Blob mit hellen Funken; der Cursor zieht eine Beule.',
+      resonance:     'Resonanz-Kammer — stehende Welle im Hohlraum; der Cursor verstimmt die Frequenz (mehr/weniger Knoten).',
+      freeze:        'Erstarrung — eine Front läuft durch und friert die heißen Partikel ins Gitter (Kristallisation).',
+      shock:         'Schockwelle — Klick erzeugt eine radiale Druckwelle; die Partikel schwingen zurück (Plasma-Puls).',
+      ironfilings:   'Feilspäne — die Dots richten sich entlang des Cursor-Dipolfelds aus (Magnetron-Feld).',
+      waferscan:     'Wafer-Scan — eine vertikale Scan-Linie wandert durch und inspiziert das Feld (Halbleiter-Inspektion).',
+      aggregate:     'Aggregation — Partikel ballen sich zu wenigen Clustern und lösen sich wieder (Materie-Bildung).',
       chain:   'Kette — Mikrowellen-Leistung baut sich auf und wird abgestrahlt („creating waves“).',
       chain2:  'Signal-Kette — ein Signal läuft durch die Komplettkette (Generator → … → Kristall).',
     };
@@ -150,8 +171,18 @@
       swarm:       'läuft automatisch (Formation)',
       blob:        'Maus bewegen → verformt den Blob',
       distort:     'Maus bewegen verformt · rechts = Stärke · unten = Twist',
-      strudel:     'Maus bewegen → Wirbel zieht nach unten',
+      strudel:     'Maus bewegen → verstärkt den Sog',
       blackhole:   'Maus bewegen → Zentrum folgt dem Cursor',
+      mist:         'läuft automatisch (Curl-Flow)',
+      repel:        'Maus bewegen → stößt die Partikel weg',
+      bounce:       'Maus bewegen → schubst die Partikel',
+      constellation:'Maus bewegen → verformt den Blob',
+      resonance:    'Maus links/rechts → verstimmt die Frequenz',
+      freeze:       'läuft automatisch (Erstarrungs-Front)',
+      shock:        'Klick = Schockwelle auslösen',
+      ironfilings:  'Maus bewegen → richtet das Feld aus',
+      waferscan:    'läuft automatisch (Scan-Linie)',
+      aggregate:    'läuft automatisch (Cluster bilden/lösen)',
     };
 
     const canvas = document.getElementById('wave');
