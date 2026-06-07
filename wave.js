@@ -37,7 +37,16 @@ const PRESETS = {
   gem:     P({ formGem:1,    rotSpeed:0.18, tilt:0.0, pointSize:3.6 }),
   reaktor: P({ formReaktor:1, rotSpeed:0.25, tilt:0.0, pointSize:3.6 }),
   plasma:  P({ formSphere:1,  rotSpeed:0.12, tilt:0.0, glow:1.0, pointSize:3.6 }),
+  // Step-2-Konzepte (Logik im Shader-Concept-Branch)
+  molecule:  P({ pointSize:3.6 }),
+  wafer:     P({ pointSize:3.6 }),
+  interfere: P({ pointSize:3.6 }),
+  beam:      P({ pointSize:3.6 }),
+  ignite:    P({ pointSize:3.6 }),
+  globe:     P({ pointSize:3.4 }),
+  swarm:     P({ pointSize:3.2 }),
 };
+const CONCEPTS = { molecule:1, wafer:2, interfere:3, beam:4, ignite:5, globe:6, swarm:7 };
 const CHAIN_BASE = P({ formGrid:1, tilt:0.5, pointSize:3.6 });
 
 // =============================================================================
@@ -50,6 +59,7 @@ attribute vec3  a_diamond;   // Reaktor (kugeliges Kristallgitter)
 attribute vec3  a_sphere;    // Plasma-Kugel
 attribute vec3  a_gem;       // echter Diamant
 attribute vec2  a_scatter;   // verstreute Partikel (antigravity / Ring 2)
+attribute vec2  a_word;      // Ziel-Positionen MUEGGE-Wortmarke (Schwarm)
 attribute float a_rand;
 
 uniform float u_time, u_dpr, u_scale, u_pointSize;
@@ -62,25 +72,17 @@ uniform vec2  u_mouse; uniform float u_mouseAmp;
 uniform vec2  u_mouseNDC;                          // Cursor in NDC (Plasma-Hotspot)
 uniform vec2  u_magCenter; uniform float u_magAmp;
 uniform float u_tilt, u_rotY, u_spark;
-uniform float u_chainMode, u_chainPos;   // 1 = Kette "Die Linie"
+uniform float u_chainMode, u_chainPos, u_chainStyle;   // chainMode=an, Style 0=Streifen / 1=Signal-Blob
 uniform float u_grow;                     // Diamant-Wachstum (0..1.1)
 uniform vec2  u_ring; uniform float u_ringAmp;   // Cursor-Ring (antigravity)
 uniform float u_scatterAmp;                       // verstreuter Antigravity-Modus (Ring 2)
+uniform float u_concept;                          // Step-2-Konzepte: 1..7
 uniform mat4  u_proj, u_view;
 
 varying mediump float v_energy, v_rand, v_form, v_bright;
 
 mat3 rotX(float a){ float c=cos(a),s=sin(a); return mat3(1.,0.,0., 0.,c,-s, 0.,s,c); }
 mat3 rotY(float a){ float c=cos(a),s=sin(a); return mat3(c,0.,s, 0.,1.,0., -s,0.,c); }
-
-// Ketten-Front: beschleunigt nach rechts (pow), blendet an den Enden weich ein/aus. strk = Speed-Linie dahinter.
-float chainFront(float nx, float ph, out float strk) {
-  float pp = pow(ph, 1.8);                                                       // Beschleunigung nach rechts
-  float fade = smoothstep(0.0, 0.06, ph) * (1.0 - smoothstep(0.92, 1.0, ph));    // Enden weich (kein Cut)
-  float dist = nx - pp;
-  strk = exp(-pow((dist + 0.09) / 0.11, 2.0) * 0.5) * smoothstep(0.02, -0.09, dist) * fade; // hinter der Front
-  return exp(-pow(dist / 0.10, 2.0) * 0.5) * fade;
-}
 
 void main(){
   // ===== AG DOTS: wenige, grosse, verstreute Punkte; aussen leer, am Cursor wabernder Ring (antigravity mit Dots) =====
@@ -101,23 +103,110 @@ void main(){
     return;
   }
 
+  // ===== KONZEPTE (Step 2): 1 Molekuel · 2 Wafer · 3 Interferenz · 4 Beam · 5 Zuendung · 6 Globus · 7 Schwarm =====
+  if (u_concept > 0.5) {
+    vec3 p = vec3(a_uv, 0.0);
+    float b = 0.7, sm = 0.0, en = 0.0, wl = 0.0, tiltC = 0.5;
+    vec2 mr = u_ring;                                                    // gelagerte Cursor-Position (Feldkoords)
+
+    if (u_concept < 1.5) {                                              // 1 MOLEKUEL-SPALTUNG (Power-to-X)
+      vec2 dir2 = vec2(cos(a_rand*6.2831), sin(a_rand*6.2831));
+      float split = 0.5 + 0.5 * sin(u_time*1.3 + floor(a_uv.x*4.0));
+      float cur = exp(-dot(a_uv-mr, a_uv-mr) * 2.5);                    // Cursor spaltet lokal
+      split = clamp(split*0.35 + cur, 0.0, 1.0);
+      p.xy += dir2 * split * 0.12;
+      b = 0.55 + split*0.7; sm = split*0.4;
+    } else if (u_concept < 2.5) {                                      // 2 WAFER-REINIGUNG (Downstream-Plasma)
+      tiltC = 1.15;
+      float nx = a_uv.x/1.7*0.5 + 0.5;
+      float sweep = fract(u_time*0.13);
+      float cur = exp(-dot(a_uv-mr, a_uv-mr) * 3.0);
+      float cleaned = max(smoothstep(sweep+0.04, sweep-0.04, nx), cur);
+      float dirt = step(0.5, a_rand) * (1.0 - cleaned);
+      p.z += dirt * 0.18 + dirt * sin(u_time*7.0 + a_rand*40.0) * 0.03;
+      b = mix(1.0, 0.20, dirt); sm = cleaned * step(0.5, a_rand) * 0.4;
+    } else if (u_concept < 3.5) {                                      // 3 STEHENDE WELLE / INTERFERENZ
+      tiltC = 0.55;
+      float d1 = length(a_uv - vec2(-0.7, 0.0));
+      float d2 = length(a_uv - mr);
+      float wv = sin(d1*8.0 - u_time*2.0) + sin(d2*8.0 - u_time*2.0);
+      p.z += wv * 0.12; b = 0.55 + abs(wv)*0.45; sm = abs(wv)*0.25;
+    } else if (u_concept < 4.5) {                                      // 4 ANTENNEN-ARRAY / BEAMFORMING
+      tiltC = 0.5;
+      vec2 bd = normalize(mr + vec2(0.0001, 0.0001));
+      float al = dot(normalize(a_uv + vec2(0.0001)), bd);
+      float lobe = pow(max(0.0, al), 6.0);
+      float along = dot(a_uv, bd);
+      float puls = exp(-pow(along - fract(u_time*0.5)*3.0, 2.0) * 3.0);
+      b = 0.26 + lobe*(1.2 + puls*1.6); sm = lobe*0.6;
+    } else if (u_concept < 5.5) {                                      // 5 ZUENDUNG (kaltes Gas -> Flash -> Glow)
+      tiltC = 0.5;
+      float t = fract(u_time*0.22);
+      float flash = exp(-pow((t-0.18)/0.04, 2.0) * 0.5);
+      float glow  = smoothstep(0.18, 0.35, t) * (1.0 - smoothstep(0.8, 1.0, t));
+      p.z += glow * (a_rand-0.5) * 0.12 - glow * 0.08;                 // Radikale stroemen ab
+      b = 0.16 + flash*3.0 + glow*0.9; sm = flash*0.9;
+    } else if (u_concept < 6.5) {                                      // 6 GLOBALES NETZ (40+ Laender)
+      p = rotX(0.3) * (rotY(u_time*0.12) * a_sphere);
+      float sig = step(0.985, fract(a_rand*13.0 + u_time*0.4));        // Signale pulsieren zwischen Knoten
+      b = 0.32 + sig*1.7; sm = sig*1.1; tiltC = 0.0;
+    } else {                                                           // 7 SCHWARM -> WORTMARKE
+      float g = smoothstep(0.0, 1.0, 0.5 + 0.5 * sin(u_time*0.32));
+      vec3 sc = vec3(a_scatter, sin(a_rand*20.0) * 0.2);
+      vec3 wd = vec3(a_word, 0.0);
+      p = mix(sc, wd, g); b = 0.40 + g*0.7; sm = g*0.3; tiltC = 0.0;
+    }
+
+    p = rotX(tiltC) * p;
+    v_energy = clamp(en,0.0,1.0); v_rand = a_rand; v_form = wl; v_bright = b;
+    vec4 vp = u_view * vec4(p * u_scale, 1.0);
+    gl_Position = u_proj * vp;
+    gl_PointSize = u_pointSize * u_dpr * (2.6 / max(0.25, -vp.z)) * (1.0 + max(0.0, sm));
+    return;
+  }
+
   float energy = 0.0, sizeMod = 0.0, whiteLocal = 0.0, bright = 1.0;
   vec3 grid = vec3(a_uv, 0.0);
 
   if (u_chainMode > 0.5) {
-    // ===== KETTE: beschleunigender Energie-Front, zieht nach rechts raus (Speed-Linien), blendet weich (kein Cut) =====
     float nx = clamp(a_uv.x / 1.7 * 0.5 + 0.5, 0.0, 1.0);
-    grid.z += sin(dot(a_uv, normalize(vec2(1.0, 0.18))) * 5.0 - u_time * 1.6) * 0.12;             // dezente Wellen-Textur
-    float strk;
-    float front = chainFront(nx, fract(u_chainPos), strk);
-    bright = 0.40 + front * 1.4;                                                                  // heller Front
-    grid.x  += strk * 0.55;                                                                       // ZIEHT nach rechts raus
-    bright  += strk * 0.6;
-    sizeMod += front * 0.5 + strk * 0.5;
-    grid.z += a_rand * 0.05 * sin(u_time*22.0 + a_rand*30.0) * smoothstep(0.16, 0.0, nx) * front; // 1 Strom (Funken)
-    float pl = smoothstep(0.60,0.74,nx) * (1.0 - smoothstep(0.88,0.98,nx));
-    bright += pl * front * 0.5;                                                                   // 4 Plasma
-    whiteLocal = smoothstep(0.88, 0.99, nx) * front;                                              // 5 Kristall (Output)
+    float d = nx - u_chainPos; float ddx = d - floor(d + 0.5);                                    // periodisch -> nahtlos
+    float inten = 0.12 + pow(nx, 1.3) * 1.2;     // Aufbau: ruhig links -> stark rechts
+    if (u_chainStyle < 0.5) {
+      // ----- KETTE: ungeordneter Partikel-Cloud (Strom) ORGANISIERT sich nach rechts zur Welle, dann RAUSGESCHUBST -----
+      float order = smoothstep(0.06, 0.40, nx);                                                    // links ungeordnet -> rechts Welle
+      float cloud = (a_rand - 0.5) * 0.55 + sin(u_time*0.4 + a_rand*30.0) * 0.04;                  // ungeordnet, sitzt (kein Springen)
+      float wave  = sin(a_uv.x*(5.0 + nx*8.0) - u_time*(1.4 + nx*2.4)) * 0.30 * inten;             // geordnete Welle
+      grid.z += mix(cloud, wave, order);                                                           // IMMER sichtbar: Cloud -> Welle
+      sizeMod += (1.0 - order) * 0.3;                                                              // Partikel links etwas groesser/praesent
+      // Energie-Puls laeuft durch (beschleunigt), hebt die aktuelle Stelle hervor
+      float px = pow(u_chainPos, 1.3);
+      float bloom = exp(-pow((nx - px) / mix(0.16, 0.08, nx), 2.0) * 0.5);
+      bright = 0.40 + bloom * (0.8 + inten);
+      sizeMod += bloom * (0.4 + inten * 0.5);
+      whiteLocal = smoothstep(0.86, 0.98, nx) * bloom;
+      // Eject: die fertige Welle wird beschleunigt nach rechts rausgeschoben + ausgeblendet
+      float ej = smoothstep(0.78, 1.0, u_chainPos);
+      float head = exp(-pow((nx - px) / 0.16, 2.0) * 0.5) * step(0.4, nx);
+      float fly = ej * head;
+      grid.x  += fly * (0.8 + 5.0 * ej);
+      bright  += fly * (1.0 - ej) - ej * head * 0.3;
+      sizeMod += fly * (1.0 - ej);
+    } else {
+      // ----- SIGNAL-KETTE: lokaler Blob auf Mittellinie, diffus links -> scharf+stark rechts -----
+      float sigx = mix(0.15, 0.07, nx);
+      float blobX = exp(-pow(ddx / sigx, 2.0) * 0.5);
+      float blobY = exp(-pow(a_uv.y / 0.32, 2.0) * 0.5);
+      float blob  = blobX * blobY;
+      bright   = 0.40 + blob * (0.8 + inten * 1.2);
+      sizeMod += blob * (0.5 + inten * 0.6);
+      grid.z  += blob * 0.22 * inten;
+      float trail = exp(-pow((ddx + 0.13) / 0.12, 2.0) * 0.5) * smoothstep(0.0, -0.05, ddx) * blobY;
+      grid.x  += trail * 0.30 * inten;
+      bright  += trail * 0.6;
+      grid.z  += a_rand * 0.05 * sin(u_time*22.0 + a_rand*30.0) * smoothstep(0.16, 0.0, nx) * blob;
+      whiteLocal = smoothstep(0.88, 0.99, nx) * blob;
+    }
   } else {
     // ===== Normale Modi =====
     float ph = dot(a_uv, normalize(u_waveDir)) * u_waveFreq - u_time * u_waveSpeed;
@@ -184,17 +273,22 @@ void main(){
     sizeMod += push * 2.0;
   }
 
-  // Plasma: Basis senken (sonst additive Saettigung -> Puls/Hotspot unsichtbar), dann KLAR pulsieren.
-  bright -= u_formSphere * 0.55;
-  float breath = 0.45 + 0.45 * sin(u_time * 2.2);
-  float shimmer = 0.15 * sin(u_time * 5.0 + a_rand * 40.0);
-  bright += u_glow * (breath + shimmer);
+  // Plasma: ruhiger Glow (KEIN Helligkeits-Puls) + leises Shimmer; die Energie steckt in der FORM (s.u.).
+  bright -= u_formSphere * 0.35;
+  bright += u_glow * (0.55 + 0.12 * sin(u_time * 5.0 + a_rand * 40.0));
 
   grid = rotX(u_tilt) * grid;
 
   mat3 obj = rotX(0.28) * rotY(u_rotY);
   vec3 dia = obj * a_diamond;
-  vec3 sph = obj * (a_sphere * (1.0 + 0.04 * sin(u_time * 1.6 + a_rand * 20.0)));  // dezente Turbulenz
+  // Plasma als FORM: wabern (Geometrie) + Eruptionen von innen raus + Maus verformt (Beule zum Cursor)
+  vec3 sdir = normalize(obj * a_sphere);
+  float wob = sin(a_sphere.x*4.0 + u_time*1.6) * sin(a_sphere.y*4.0 - u_time*1.3) * sin(a_sphere.z*4.0 + u_time*1.9);
+  float erupt = smoothstep(0.6, 1.0, sin(u_time*0.5 + a_rand*20.0)) * step(a_rand, 0.08);   // selten + sanft rausdruecken
+  vec3 cDir = normalize(vec3(u_mouseNDC * 1.2, 0.8));
+  float facing = pow(max(0.0, dot(sdir, cDir)), 3.0);
+  float rr = 1.0 + wob * 0.22 + erupt * 0.4 + facing * (0.30 + u_mouseAmp * 4.0);            // Maus-Beule
+  vec3 sph = sdir * rr;
 
   // Diamant-WACHSTUM (CVD): Atome stroemen von aussen rein, wachsen vom Zentrum nach aussen an
   float tr = length(a_gem);                                       // Ziel-Radius (0 = innen, 1 = aussen)
@@ -220,12 +314,6 @@ void main(){
 
   vec4 viewPos = u_view * vec4(pos, 1.0);
   vec4 clip = u_proj * viewPos;
-  // Plasma x Cursor: Cursor = Mikrowellen-Einkopplung -> lokaler Hotspot, der das Plasma aufflammt (fachlich korrekt)
-  if (u_formSphere > 0.5) {
-    vec2 ndc = clip.xy / clip.w;
-    float md = distance(ndc, u_mouseNDC);
-    bright += exp(-md * md * 5.0) * (1.8 + 0.6 * sin(u_time * 9.0));   // klarer lokaler Aufflamm-Hotspot
-  }
   v_bright = bright;
   gl_Position  = clip;
   gl_PointSize = vis * u_pointSize * u_dpr * (2.6 / max(0.25, -viewPos.z)) * (1.0 + max(0.0, sizeMod));
@@ -346,6 +434,25 @@ function buildScatter(n) {  // verstreute Partikel-Positionen (Antigravity / Rin
   for (let i = 0; i < n; i++) { out[i*2] = (rg()*2-1) * 1.9; out[i*2+1] = (rg()*2-1) * 1.15; }
   return out;
 }
+function buildWord(n) {  // Ziel-Positionen aus der MUEGGE-Wortmarke (Canvas-Sampling)
+  const rw = mulberry32(909), cw = 280, ch = 72, pts = [];
+  try {
+    const cvs = document.createElement('canvas'); cvs.width = cw; cvs.height = ch;
+    const ctx = cvs.getContext('2d');
+    ctx.fillStyle = '#fff'; ctx.font = '700 46px Inter, Arial, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('MUEGGE', cw / 2, ch / 2);
+    const data = ctx.getImageData(0, 0, cw, ch).data;
+    for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) if (data[(y*cw + x)*4 + 3] > 128) pts.push([x, y]);
+  } catch (e) { /* getImageData kann in seltenen Faellen blocken */ }
+  const out = new Float32Array(n * 2);
+  for (let i = 0; i < n; i++) {
+    const pt = pts.length ? pts[Math.floor(rw() * pts.length)] : [cw/2, ch/2];
+    out[i*2]   = (pt[0]/cw*2 - 1) * 1.6;
+    out[i*2+1] = -(pt[1]/ch*2 - 1) * 0.4;
+  }
+  return out;
+}
 function buildGem(n) {  // SOLIDER Oktaeder (Diamant-Habit, Volumen) — fuer das Schicht-Wachstum
   const rg = mulberry32(7);
   const out = new Float32Array(n * 3);
@@ -383,6 +490,7 @@ export function createWaveField(canvas, opts = {}) {
   const sph = buildSphere(N);
   const gem = buildGem(N);
   const scatter = buildScatter(N);
+  const word = buildWord(N);
   const rand = new Float32Array(N);
   for (let i=0;i<N;i++) rand[i] = rnd();
 
@@ -390,23 +498,23 @@ export function createWaveField(canvas, opts = {}) {
   const bg = program(gl, BG_VERT, BG_FRAG);
 
   const buf = (data) => { const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW); return b; };
-  const bUv = buf(uv), bDia = buf(dia), bSph = buf(sph), bGem = buf(gem), bScatter = buf(scatter), bRand = buf(rand);
+  const bUv = buf(uv), bDia = buf(dia), bSph = buf(sph), bGem = buf(gem), bScatter = buf(scatter), bWord = buf(word), bRand = buf(rand);
   const bQuad = buf(new Float32Array([-1,-1, 3,-1, -1,3]));
 
   const A = (n) => gl.getAttribLocation(prog, n);
   const U = (n) => gl.getUniformLocation(prog, n);
   const loc = {
-    a_uv:A('a_uv'), a_diamond:A('a_diamond'), a_sphere:A('a_sphere'), a_gem:A('a_gem'), a_scatter:A('a_scatter'), a_rand:A('a_rand'),
+    a_uv:A('a_uv'), a_diamond:A('a_diamond'), a_sphere:A('a_sphere'), a_gem:A('a_gem'), a_scatter:A('a_scatter'), a_word:A('a_word'), a_rand:A('a_rand'),
     time:U('u_time'), dpr:U('u_dpr'), scale:U('u_scale'), pointSize:U('u_pointSize'),
     formGrid:U('u_formGrid'), formReaktor:U('u_formReaktor'), formSphere:U('u_formSphere'), formGem:U('u_formGem'),
     waveAmp:U('u_waveAmp'), waveFreq:U('u_waveFreq'), waveSpeed:U('u_waveSpeed'),
     breathe:U('u_breathe'), flat:U('u_flat'), glow:U('u_glow'), flowAmp:U('u_flowAmp'), waveDir:U('u_waveDir'),
-    ring:U('u_ring'), ringAmp:U('u_ringAmp'), scatterAmp:U('u_scatterAmp'),
+    ring:U('u_ring'), ringAmp:U('u_ringAmp'), scatterAmp:U('u_scatterAmp'), concept:U('u_concept'),
     pulseT:U('u_pulseT'), pulseAmp:U('u_pulseAmp'), pulseCenter:U('u_pulseCenter'),
     mouse:U('u_mouse'), mouseAmp:U('u_mouseAmp'), mouseNDC:U('u_mouseNDC'),
     magCenter:U('u_magCenter'), magAmp:U('u_magAmp'),
     tilt:U('u_tilt'), rotY:U('u_rotY'), spark:U('u_spark'),
-    chainMode:U('u_chainMode'), chainPos:U('u_chainPos'), grow:U('u_grow'),
+    chainMode:U('u_chainMode'), chainPos:U('u_chainPos'), chainStyle:U('u_chainStyle'), grow:U('u_grow'),
     proj:U('u_proj'), view:U('u_view'),
     cyan:U('u_cyan'), green:U('u_green'), hot:U('u_hot'), white:U('u_white'),
   };
@@ -432,9 +540,9 @@ export function createWaveField(canvas, opts = {}) {
   const cur = Object.assign({}, PRESETS.wave);
   const tgt = Object.assign({}, PRESETS.wave);
   let modeName = 'wave';
-  let chainOn = false, chainP = 0, chainAuto = false;
+  let chainOn = false, chainP = 0, chainAuto = false, chainStyle = 0;
   let magnetOn = false, magCenter = [0, 0];
-  let ringOn = false, ringPos = [0, 0], dashOn = false, scatterPtsOn = false;
+  let ringOn = false, ringPos = [0, 0], dashOn = false, scatterPtsOn = false, conceptId = 0;
   let growT = 0, growVal = 1.12;
   let mouse = [0,0], mouseAmp = 0, mouseNDC = [2, 2];
   let pulseStart = -10, lastPulse = 0;
@@ -446,13 +554,14 @@ export function createWaveField(canvas, opts = {}) {
   const setTargets = (o) => { for (const k in o) tgt[k] = o[k]; };
 
   function setMode(name) {
-    chainAuto = false; chainOn = false; magnetOn = false; ringOn = false; dashOn = false; scatterPtsOn = false;
-    if (name === 'chain') { chainOn = true; chainAuto = true; chainP = 0; modeName = name; setTargets(CHAIN_BASE); return; }
+    chainAuto = false; chainOn = false; magnetOn = false; ringOn = false; dashOn = false; scatterPtsOn = false; conceptId = 0;
+    if (name === 'chain' || name === 'chain2') { chainOn = true; chainAuto = true; chainP = 0; chainStyle = (name === 'chain2') ? 1 : 0; modeName = name; setTargets(CHAIN_BASE); return; }
     if (!PRESETS[name]) return;
     if (name === 'magnet') magnetOn = true;
     if (name === 'ring') ringOn = true;                                // Cursor-Ring auf dem Grid (morpht)
     if (name === 'agdots') { ringOn = true; scatterPtsOn = true; }     // AG mit Dots (sparse Punkte)
     if (name === 'antigravity') { ringOn = true; dashOn = true; }      // AG mit Dashes (Linien)
+    if (CONCEPTS[name]) { conceptId = CONCEPTS[name]; ringOn = true; } // Step-2-Konzepte (Cursor aktiv)
     if (name === 'gem') growT = 0;   // Wachstum von vorne starten
     modeName = name; setTargets(PRESETS[name]);
   }
@@ -496,7 +605,7 @@ export function createWaveField(canvas, opts = {}) {
     if (!running || !visible) return;
     T += dt;
 
-    if (chainAuto) chainP = (chainP + dt / 11) % 1;   // nahtlos: Puls wrappt periodisch
+    if (chainAuto) chainP = (chainP + dt / 9) % 1;   // etwas schneller (Start nicht zu langsam)
     if (chainOn && onChain) onChain(chainP);
 
     const k = 1 - Math.pow(0.001, dt);
@@ -538,7 +647,7 @@ export function createWaveField(canvas, opts = {}) {
 
     gl.useProgram(prog);
     bindAttr(loc.a_uv, bUv, 2); bindAttr(loc.a_diamond, bDia, 3); bindAttr(loc.a_sphere, bSph, 3);
-    bindAttr(loc.a_gem, bGem, 3); bindAttr(loc.a_scatter, bScatter, 2); bindAttr(loc.a_rand, bRand, 1);
+    bindAttr(loc.a_gem, bGem, 3); bindAttr(loc.a_scatter, bScatter, 2); bindAttr(loc.a_word, bWord, 2); bindAttr(loc.a_rand, bRand, 1);
 
     gl.uniform1f(loc.time, T); gl.uniform1f(loc.dpr, DPR); gl.uniform1f(loc.scale, fieldScale);
     gl.uniform1f(loc.pointSize, cur.pointSize);
@@ -553,8 +662,9 @@ export function createWaveField(canvas, opts = {}) {
     gl.uniform2f(loc.magCenter, magCenter[0], magCenter[1]); gl.uniform1f(loc.magAmp, magnetOn ? 0.6 : 0);
     gl.uniform2f(loc.ring, ringPos[0], ringPos[1]); gl.uniform1f(loc.ringAmp, ringOn ? 1 : 0);
     gl.uniform1f(loc.scatterAmp, scatterPtsOn ? 1 : 0);
+    gl.uniform1f(loc.concept, conceptId);
     gl.uniform1f(loc.tilt, cur.tilt); gl.uniform1f(loc.rotY, rotY); gl.uniform1f(loc.spark, spark);
-    gl.uniform1f(loc.chainMode, chainOn ? 1 : 0); gl.uniform1f(loc.chainPos, chainP); gl.uniform1f(loc.grow, growVal);
+    gl.uniform1f(loc.chainMode, chainOn ? 1 : 0); gl.uniform1f(loc.chainPos, chainP); gl.uniform1f(loc.chainStyle, chainStyle); gl.uniform1f(loc.grow, growVal);
     gl.uniformMatrix4fv(loc.proj, false, proj); gl.uniformMatrix4fv(loc.view, false, view);
     gl.uniform3fv(loc.cyan, colors.cyan); gl.uniform3fv(loc.green, colors.green);
     gl.uniform3fv(loc.hot, colors.hot); gl.uniform3fv(loc.white, colors.white);
@@ -574,7 +684,7 @@ export function createWaveField(canvas, opts = {}) {
       cancelAnimationFrame(raf); ro.disconnect(); io.disconnect();
       document.removeEventListener('visibilitychange', onVis);
       canvas.removeEventListener('mousemove', onMove); canvas.removeEventListener('click', onClick);
-      [bUv, bDia, bSph, bGem, bScatter, bRand, bQuad, bDBase, bDSide, bDRand].forEach((b) => gl.deleteBuffer(b));
+      [bUv, bDia, bSph, bGem, bScatter, bWord, bRand, bQuad, bDBase, bDSide, bDRand].forEach((b) => gl.deleteBuffer(b));
       gl.deleteProgram(prog); gl.deleteProgram(bg); gl.deleteProgram(dashProg);
     },
   };

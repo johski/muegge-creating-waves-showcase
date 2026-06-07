@@ -4,6 +4,8 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>MUEGGE — creating waves · Showcase</title>
+<link rel="icon" href="muegge-favicon.jpg" sizes="any" />
+<link rel="apple-touch-icon" href="muegge-favicon.jpg" />
 <style>
   :root {
     --deep:#0a1d37; --ink:#0a1523; --cyan:#60C6F0; --green:#61CE70; --peach:#FFBC7D;
@@ -34,9 +36,9 @@
   .panel .scrub.show { display:flex; }
   .panel input[type=range] { width:130px; accent-color:var(--cyan); }
 
-  .caption { position:fixed; left:50%; bottom:5rem; transform:translateX(-50%); z-index:9; font-size:.82rem; color:var(--muted); text-align:center; max-width:64ch; padding:0 1rem; }
+  .caption { position:fixed; left:50%; bottom:7rem; transform:translateX(-50%); z-index:9; font-size:.82rem; color:var(--muted); text-align:center; max-width:70ch; padding:0 1rem; line-height:1.4; }
   /* Stations-Labels (nur Kette B) */
-  .stations { position:fixed; left:50%; bottom:6.6rem; transform:translateX(-50%); z-index:9; display:none; gap:1.4rem; font-size:.7rem; letter-spacing:.06em; text-transform:uppercase; }
+  .stations { position:fixed; left:50%; bottom:10rem; transform:translateX(-50%); z-index:9; display:none; gap:1.4rem; font-size:.7rem; letter-spacing:.06em; text-transform:uppercase; }
   .stations.show { display:flex; }
   .stations span { color:var(--muted); transition:.25s ease; opacity:.5; }
   .stations span.on { color:var(--cyan); opacity:1; text-shadow:0 0 12px rgba(96,198,240,.6); }
@@ -54,7 +56,7 @@
     </div>
   </section>
 
-  <p class="hint">Maus bewegen · klicken sendet ein Signal</p>
+  <p class="hint" id="hint"></p>
   <div class="stations" id="stations">
     <span>Generator</span><span>Magnetron</span><span>Hohlleiter</span><span>Plasma</span><span>Kristall</span>
   </div>
@@ -63,8 +65,8 @@
   <nav class="panel" id="panel">
     <button data-mode="wave">Wave</button>
     <button data-mode="ring">Ring</button>
-    <button data-mode="agdots">AG Dots</button>
-    <button data-mode="antigravity">AG Dashes</button>
+    <button data-mode="agdots">Partikel</button>
+    <button data-mode="antigravity">Feldlinien</button>
     <button data-mode="grid">Grid</button>
     <button data-mode="magnet">Magnet</button>
     <button data-mode="pulse">Signal</button>
@@ -72,7 +74,16 @@
     <button data-mode="reaktor">Reaktor</button>
     <button data-mode="plasma">Plasma</button>
     <span class="sep"></span>
+    <button data-mode="molecule">Molekül</button>
+    <button data-mode="wafer">Wafer</button>
+    <button data-mode="interfere">Interferenz</button>
+    <button data-mode="beam">Beam</button>
+    <button data-mode="ignite">Zündung</button>
+    <button data-mode="globe">Globus</button>
+    <button data-mode="swarm">Schwarm</button>
+    <span class="sep"></span>
     <button data-mode="chain">▶ Kette</button>
+    <button data-mode="chain2">▶ Signal-Kette</button>
     <span class="scrub" id="scrub"><input type="range" min="0" max="1" step="0.001" value="0" id="range" /></span>
   </nav>
 
@@ -89,15 +100,46 @@
     const CAPTIONS = {
       wave:    'a) Mikrowelle — eine Sinus-Wellenfront laeuft durchs Feld. Der Hero-Default.',
       ring:    'Ring — Cursor-Ring auf dem Grid (morpht mit allen Modi), aussen gedimmt. Maus bewegen!',
-      agdots:  'AG Dots — Antigravity mit Dots: wenige grosse, verstreute Punkte, aussen leer, am Cursor ein wabernder Ring. Maus bewegen!',
-      antigravity: 'AG Dashes — Antigravity als Striche (Google-nah): Dashes im Flow-Feld, aussen fast leer, am Cursor wirbelnder Ring. Eigenes Primitiv -> morpht NICHT. Maus bewegen!',
+      agdots:  'Partikel — wenige grosse, verstreute Partikel im Feld; aussen leer, am Cursor ein wabernder Ring. Maus bewegen!',
+      antigravity: 'Feldlinien — orientierte Striche wie elektromagnetische Feldlinien im Flow-Feld, am Cursor wirbelnder Ring. Maus bewegen!',
       grid:    'c1) Grid — echtes Top-Down: ruhig atmendes Punktefeld (Prozess-Flaeche / Wafer).',
       magnet:  'Magnet — ein Feld schiebt die Atome auseinander (folgt der Maus, idle kreist es). Analog zum Magnetron.',
       pulse:   'd) Signal — ein Puls strahlt von der Quelle aus: "Signal gesendet".',
       gem:     'f) Diamant — CVD-Wachstum: Atome stroemen rein und wachsen Schicht fuer Schicht zum Kristall (Loop).',
       reaktor: 'f) Reaktor — strahlender Kristall-Kern (die fruehere Diamant-Form, behalten).',
       plasma:  'f) Plasma — leuchtende, pulsierende Plasma-Kugel ("das Herz").',
-      chain:   'Kette "Die Linie" — ruhiges Feld, EIN Puls reist durch die Stationen (Labels oben). Slider = Scroll-Kopplung.',
+      molecule:  'Molekül-Spaltung (Power-to-X) — Mikrowellen spalten CO₂/CH₄: Molekuele brechen in Radikale auf. Cursor spaltet lokal.',
+      wafer:     'Wafer-Reinigung — Downstream-Plasma putzt den Wafer atomweise frei ("wie von Geisterhand"). Cursor reinigt.',
+      interfere: 'Stehende Welle — zwei Mikrowellen-Quellen erzeugen ein Interferenzmuster. Cursor = zweite Quelle.',
+      beam:      'Beamforming — ein Antennen-Array lenkt einen Mikrowellen-Strahl. Cursor steuert die Richtung.',
+      ignite:    'Zündung — kaltes Gas, Mikrowelle an: Blitz, dann Plasma-Wolke, Radikale stroemen ab (Loop).',
+      globe:     'Globales Netz — MUEGGE liefert in 40+ Laender; Signale pulsieren zwischen den Knoten.',
+      swarm:     'Schwarm — die Partikel finden aus dem Chaos zur MUEGGE-Wortmarke (Loop).',
+      chain:   'Kette — "creating waves / Power to your projects": Mikrowellen-Leistung baut sich auf, buendelt + beschleunigt und wird als Welle nach aussen abgestrahlt. Slider = Scroll.',
+      chain2:  'Signal-Kette — die Komplettkette aus einer Hand: ein Signal laeuft durch alle Stationen (Generator → … → Kristall). Slider = Scroll.',
+    };
+
+    // Interaktions-Hinweis je Modus (oben rechts) — nur was wirklich reagiert
+    const HINTS = {
+      wave:        'Maus bewegen · Klick = Puls',
+      ring:        'Maus bewegen → der Ring folgt',
+      agdots:      'Maus bewegen → Partikel reagieren',
+      antigravity: 'Maus bewegen → Feldlinien wirbeln',
+      grid:        'Maus bewegen · Klick = Puls',
+      magnet:      'Maus bewegen → schiebt die Partikel',
+      pulse:       'Klick = Signal senden',
+      gem:         'läuft automatisch (Wachstum)',
+      reaktor:     'läuft automatisch (Rotation)',
+      plasma:      'Maus bewegen → verformt das Plasma',
+      chain:       'Slider ziehen = Kette steuern',
+      chain2:      'Slider ziehen = Signal steuern',
+      molecule:    'Maus bewegen → spaltet Molekuele',
+      wafer:       'Maus bewegen → reinigt den Wafer',
+      interfere:   'Maus bewegen → zweite Wellenquelle',
+      beam:        'Maus bewegen → lenkt den Strahl',
+      ignite:      'läuft automatisch (Zündung)',
+      globe:       'läuft automatisch (Signale)',
+      swarm:       'läuft automatisch (Formation)',
     };
 
     const canvas = document.getElementById('wave');
@@ -108,6 +150,7 @@
     const range = document.getElementById('range');
     const stations = document.getElementById('stations');
     const stationEls = [...stations.querySelectorAll('span')];
+    const hint = document.getElementById('hint');
     let dragging = false;
 
     let field;
@@ -126,7 +169,8 @@
       field.setMode(mode);
       buttons.forEach((b) => b.classList.toggle('active', b.dataset.mode === mode));
       caption.textContent = CAPTIONS[mode] || '';
-      const isChain = mode === 'chain';
+      hint.textContent = HINTS[mode] || '';
+      const isChain = mode === 'chain' || mode === 'chain2';
       scrub.classList.toggle('show', isChain);
       stations.classList.toggle('show', isChain);
     }
