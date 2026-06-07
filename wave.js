@@ -189,14 +189,18 @@ void main(){
       float along = dot(a_uv, bd);
       float puls = exp(-pow(along - fract(u_time*0.5)*3.0, 2.0) * 3.0);
       b = 0.26 + lobe*(1.2 + puls*1.6); sm = lobe*0.6;
-    } else if (u_concept < 5.5) {                                      // 5 ZUENDUNG: dunkle Gas-Wolke -> BLITZ -> pulsierendes Plasma -> dunkel
-      vec3 cloud = a_sphere * (0.92 + 0.12 * cnoise(a_sphere * 2.0 + vec3(u_time * 0.15)));  // lockere Gas-Wolke
-      p = rotX(0.2) * (rotY(u_time * 0.05) * cloud);
+    } else if (u_concept < 5.5) {                                      // 5 ZUENDUNG: ruhige Gas-Wolke -> BLITZ: Partikel werden ionisiert (Turbulenz+Expansion) -> Abklingen
       float t = fract(u_time * 0.14);                                  // ~7s Zyklus
       float flash = exp(-pow((t - 0.16) / 0.02, 2.0) * 0.5);          // scharfe Zuendung
-      float glow  = smoothstep(0.16, 0.26, t) * (1.0 - smoothstep(0.55, 0.82, t)) * (0.8 + 0.2*sin(u_time*4.0));  // pulsierendes Plasma
-      b = 0.05 + flash * 4.0 + glow * 1.1;                            // fast dunkel -> Blitz -> Glow -> dunkel
-      sm = flash * 1.0 + glow * 0.3;
+      float glow  = smoothstep(0.16, 0.26, t) * (1.0 - smoothstep(0.55, 0.82, t));  // Plasma-Phase
+      float energy = clamp(flash + glow, 0.0, 1.0);                    // 0 = kalt/still, 1 = angeregt
+      vec3 dir = normalize(a_sphere);
+      float turb = cnoise(dir * 5.0 + vec3(u_time * 2.0)) * 0.20 * energy;          // Partikel werden turbulent
+      float shimmer = sin(u_time * 30.0 + a_rand * 40.0) * 0.06 * energy;           // Ionisierungs-Zittern
+      float r = 0.90 + 0.16 * energy + turb + shimmer;                // Expansion + Turbulenz bei Zuendung
+      p = rotX(0.2) * (rotY(u_time * 0.05) * (dir * r));
+      b = 0.05 + flash * 4.0 + glow * 1.1 * (0.8 + 0.2 * sin(u_time * 4.0));        // dunkel -> Blitz -> pulsierendes Glow
+      sm = flash * 1.0 + glow * 0.4 + energy * 0.2;
       tiltC = 0.0;
     } else if (u_concept < 6.5) {                                      // 6 GLOBALES NETZ (40+ Laender)
       vec3 g = rotX(0.3) * (rotY(u_time*0.07) * a_sphere);            // langsame Rotation
