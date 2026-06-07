@@ -83,6 +83,8 @@
     <button data-mode="swarm">Schwarm</button>
     <button data-mode="blob">Blob</button>
     <button data-mode="distort">Distort</button>
+    <button data-mode="strudel">Strudel</button>
+    <button data-mode="blackhole">Schwarzes Loch</button>
     <span class="sep"></span>
     <button data-mode="chain">▶ Kette</button>
     <button data-mode="chain2">▶ Signal-Kette</button>
@@ -119,6 +121,8 @@
       swarm:     'Schwarm — die Partikel finden zur MUEGGE-Wortmarke.',
       blob:      'Blob — organisch morphende Dot-Kugel; der Cursor verformt sie.',
       distort:   'Distort — Mausbewegung verzerrt die Kugel (links↔rechts Stärke, oben↔unten Twist).',
+      strudel:   'Strudel — statisches Feld; bei Mausbewegung wird es zum Wirbel und nach unten gezogen.',
+      blackhole: 'Schwarzes Loch — Partikel spiralen in das Zentrum (folgt dem Cursor) und verschwinden am Horizont.',
       chain:   'Kette — Mikrowellen-Leistung baut sich auf und wird abgestrahlt („creating waves“).',
       chain2:  'Signal-Kette — ein Signal läuft durch die Komplettkette (Generator → … → Kristall).',
     };
@@ -146,6 +150,8 @@
       swarm:       'läuft automatisch (Formation)',
       blob:        'Maus bewegen → verformt den Blob',
       distort:     'Maus bewegen verformt · rechts = Stärke · unten = Twist',
+      strudel:     'Maus bewegen → Wirbel zieht nach unten',
+      blackhole:   'Maus bewegen → Zentrum folgt dem Cursor',
     };
 
     const canvas = document.getElementById('wave');
