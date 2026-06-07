@@ -80,7 +80,8 @@ uniform vec2  u_ring; uniform float u_ringAmp;   // Cursor-Ring (antigravity)
 uniform float u_scatterAmp;                       // verstreuter Antigravity-Modus (Ring 2)
 uniform float u_concept;                          // Step-2-Konzepte: 1..9
 uniform float u_distortStr, u_twist;              // Distort (dimorph): cursorX->Staerke, cursorY->Twist (eased)
-uniform float u_clickAge;                          // Sekunden seit letztem Klick (Globus-Ripple)
+uniform float u_clickAge;                          // Sekunden seit Globus-Klick
+uniform vec2  u_clickNDC;                          // Klick-Position (NDC) fuer Globus-Ripple
 uniform float u_distTime;                          // Distort: Noise-Zeit, advanced NUR bei Mausbewegung
 uniform mat4  u_proj, u_view;
 
@@ -188,24 +189,30 @@ void main(){
       float along = dot(a_uv, bd);
       float puls = exp(-pow(along - fract(u_time*0.5)*3.0, 2.0) * 3.0);
       b = 0.26 + lobe*(1.2 + puls*1.6); sm = lobe*0.6;
-    } else if (u_concept < 5.5) {                                      // 5 ZUENDUNG: kaltes Gas -> BLITZ -> Plasma-Wolke -> dunkel (Loop)
+    } else if (u_concept < 5.5) {                                      // 5 ZUENDUNG: dunkel -> BLITZ -> Plasma-Wolke -> Radikale stroemen ab
       tiltC = 0.5;
-      float t = fract(u_time*0.16);                                     // langsamer Zyklus (~6s)
-      float flash = exp(-pow((t-0.28)/0.025, 2.0) * 0.5);              // scharfer Zuend-Blitz
-      float glow  = smoothstep(0.28, 0.45, t) * (1.0 - smoothstep(0.7, 0.95, t));  // ruhige Plasma-Wolke danach
-      p.xy += (vec2(a_rand, fract(a_rand*5.3)) - 0.5) * 0.45 * (1.0 - glow);  // kaltes Gas gestreut -> Wolke sammelt sich
-      p.z  += glow * (a_rand - 0.5) * 0.10;
-      b = 0.10 + flash*3.5 + glow*1.0;                                 // dunkel -> Blitz -> Glow
+      float t = fract(u_time*0.16);
+      float flash = exp(-pow((t-0.20)/0.022, 2.0) * 0.5);             // Zuend-Blitz (frueh)
+      float glow  = smoothstep(0.20, 0.32, t) * (1.0 - smoothstep(0.55, 0.75, t));  // ruhige Plasma-Wolke
+      float diss  = smoothstep(0.6, 1.0, t);                          // DANACH: Radikale stroemen nach aussen ab
+      vec2 od = normalize(a_uv + vec2(0.0001));
+      p.xy += od * diss * 0.6;                                        // Dispersion nach der Zuendung (nicht davor)
+      p.z  += glow * (a_rand - 0.5) * 0.08;
+      b = (0.10 + flash*3.5 + glow*1.0) * (1.0 - diss*0.85);         // dunkel -> Blitz -> Glow -> verblasst
       sm = flash*1.2 + glow*0.3;
     } else if (u_concept < 6.5) {                                      // 6 GLOBALES NETZ (40+ Laender)
       vec3 g = rotX(0.3) * (rotY(u_time*0.07) * a_sphere);            // langsame Rotation
       p = g;
-      float hub = step(0.93, a_rand);                                  // wenige Hub-Knoten (ruhig statt Flackern)
+      float hub = step(0.93, a_rand);                                  // wenige Hub-Knoten (ruhig)
       b = 0.30 + hub*0.8 + 0.08*sin(u_time + a_rand*6.2831);
       sm = hub*0.6;
-      float angp = acos(clamp(g.z, -1.0, 1.0));                        // Klick: Signal-Ripple vom Vorderpol ueber den Globus
-      float ripple = exp(-pow((angp - u_clickAge*2.0)*3.0, 2.0)) * step(u_clickAge, 1.7);
-      b += ripple*1.6; sm += ripple*0.9;
+      // Klick-Ripple am ORT des Klicks (screen-space), nur Vorderseite des Globus
+      vec4 gclip = u_proj * (u_view * vec4(g * u_scale, 1.0));
+      vec2 gndc = gclip.xy / gclip.w;
+      float front = step(-0.1, g.z);
+      float rd = distance(gndc, u_clickNDC);
+      float ripple = exp(-pow((rd - u_clickAge*0.55) * 6.0, 2.0)) * step(u_clickAge, 1.8) * front;
+      b += ripple*1.7; sm += ripple*0.9;
       tiltC = 0.0;
     } else if (u_concept < 7.5) {                                      // 7 SCHWARM -> WORTMARKE
       float g = smoothstep(0.0, 1.0, 0.5 + 0.5 * sin(u_time*0.32));
@@ -591,7 +598,7 @@ export function createWaveField(canvas, opts = {}) {
     waveAmp:U('u_waveAmp'), waveFreq:U('u_waveFreq'), waveSpeed:U('u_waveSpeed'),
     breathe:U('u_breathe'), flat:U('u_flat'), glow:U('u_glow'), flowAmp:U('u_flowAmp'), waveDir:U('u_waveDir'),
     ring:U('u_ring'), ringAmp:U('u_ringAmp'), scatterAmp:U('u_scatterAmp'), concept:U('u_concept'),
-    distortStr:U('u_distortStr'), twist:U('u_twist'), clickAge:U('u_clickAge'), distTime:U('u_distTime'),
+    distortStr:U('u_distortStr'), twist:U('u_twist'), clickAge:U('u_clickAge'), clickNDC:U('u_clickNDC'), distTime:U('u_distTime'),
     pulseT:U('u_pulseT'), pulseAmp:U('u_pulseAmp'), pulseCenter:U('u_pulseCenter'),
     mouse:U('u_mouse'), mouseAmp:U('u_mouseAmp'), mouseNDC:U('u_mouseNDC'),
     magCenter:U('u_magCenter'), magAmp:U('u_magAmp'),
@@ -629,6 +636,7 @@ export function createWaveField(canvas, opts = {}) {
   let mouse = [0,0], mouseAmp = 0, mouseNDC = [2, 2];
   let distStr = 0, twist = 0, distTX = 0, distTY = 0, distTime = 0;   // Distort: eased cursorX->Staerke, cursorY->Twist; distTime nur bei Bewegung
   let pulseStart = -10, lastPulse = 0;
+  let globeClickT = -10, clickNDCx = 0, clickNDCy = 0;   // Globus: Klick am Ort (nur auf dem Globus)
   let proj = new Float32Array(16);
   const view = translateZ(-3.4);
   let rotY = 0, spark = 0;
@@ -669,7 +677,12 @@ export function createWaveField(canvas, opts = {}) {
     mouse = [(mx*2-1)*FIELD_ASPECT, -(my*2-1)]; mouseNDC = [mx*2-1, -(my*2-1)]; mouseAmp = 0.22;
     distTX = mx; distTY = my;   // Distort-Ziele: cursorX (0=links) -> Staerke, cursorY -> Twist
   }
-  function onClick() { pulseStart = T; }
+  function onClick() {
+    pulseStart = T;
+    if (modeName === 'globe' && Math.hypot(mouseNDC[0], mouseNDC[1]) < 0.65) {  // nur AUF dem Globus
+      globeClickT = T; clickNDCx = mouseNDC[0]; clickNDCy = mouseNDC[1];
+    }
+  }
   if (matchMedia('(pointer:fine)').matches && !reduced) {
     canvas.addEventListener('mousemove', onMove); canvas.addEventListener('click', onClick);
   }
@@ -750,7 +763,8 @@ export function createWaveField(canvas, opts = {}) {
     gl.uniform1f(loc.scatterAmp, scatterPtsOn ? 1 : 0);
     gl.uniform1f(loc.concept, conceptId);
     gl.uniform1f(loc.distortStr, distStr); gl.uniform1f(loc.twist, twist);
-    gl.uniform1f(loc.clickAge, pulseStart >= 0 ? (T - pulseStart) : 99.0);
+    gl.uniform1f(loc.clickAge, globeClickT >= 0 ? (T - globeClickT) : 99.0);
+    gl.uniform2f(loc.clickNDC, clickNDCx, clickNDCy);
     gl.uniform1f(loc.distTime, distTime);
     gl.uniform1f(loc.tilt, cur.tilt); gl.uniform1f(loc.rotY, rotY); gl.uniform1f(loc.spark, spark);
     gl.uniform1f(loc.chainMode, chainOn ? 1 : 0); gl.uniform1f(loc.chainPos, chainP); gl.uniform1f(loc.chainStyle, chainStyle); gl.uniform1f(loc.grow, growVal);
