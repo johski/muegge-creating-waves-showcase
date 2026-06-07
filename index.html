@@ -81,6 +81,8 @@
     <button data-mode="ignite">Zündung</button>
     <button data-mode="globe">Globus</button>
     <button data-mode="swarm">Schwarm</button>
+    <button data-mode="blob">Blob</button>
+    <button data-mode="distort">Distort</button>
     <span class="sep"></span>
     <button data-mode="chain">▶ Kette</button>
     <button data-mode="chain2">▶ Signal-Kette</button>
@@ -113,8 +115,10 @@
       interfere: 'Stehende Welle — zwei Mikrowellen-Quellen erzeugen ein Interferenzmuster. Cursor = zweite Quelle.',
       beam:      'Beamforming — ein Antennen-Array lenkt einen Mikrowellen-Strahl. Cursor steuert die Richtung.',
       ignite:    'Zündung — kaltes Gas, Mikrowelle an: Blitz, dann Plasma-Wolke, Radikale stroemen ab (Loop).',
-      globe:     'Globales Netz — MUEGGE liefert in 40+ Laender; Signale pulsieren zwischen den Knoten.',
+      globe:     'Globales Netz — MUEGGE liefert in 40+ Laender. Klick = ein Signal breitet sich ueber den Globus aus (Broadcast).',
       swarm:     'Schwarm — die Partikel finden aus dem Chaos zur MUEGGE-Wortmarke (Loop).',
+      blob:      'Blob — organisch morphende Dot-Kugel (cyan), langsam rotierend. Cursor verformt sie.',
+      distort:   'Distort (Dimorph) — idle = still; nur Mausbewegung verformt (Impuls). Cursor links↔rechts = Staerke, oben↔unten = Twist/Drehung.',
       chain:   'Kette — "creating waves / Power to your projects": Mikrowellen-Leistung baut sich auf, buendelt + beschleunigt und wird als Welle nach aussen abgestrahlt. Slider = Scroll.',
       chain2:  'Signal-Kette — die Komplettkette aus einer Hand: ein Signal laeuft durch alle Stationen (Generator → … → Kristall). Slider = Scroll.',
     };
@@ -138,8 +142,10 @@
       interfere:   'Maus bewegen → zweite Wellenquelle',
       beam:        'Maus bewegen → lenkt den Strahl',
       ignite:      'läuft automatisch (Zündung)',
-      globe:       'läuft automatisch (Signale)',
+      globe:       'Klick = Signal über den Globus senden',
       swarm:       'läuft automatisch (Formation)',
+      blob:        'Maus bewegen → verformt den Blob',
+      distort:     'Maus bewegen verformt · rechts = Stärke · unten = Twist',
     };
 
     const canvas = document.getElementById('wave');

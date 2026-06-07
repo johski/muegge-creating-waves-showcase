@@ -45,8 +45,10 @@ const PRESETS = {
   ignite:    P({ pointSize:3.6 }),
   globe:     P({ pointSize:3.4 }),
   swarm:     P({ pointSize:3.2 }),
+  blob:      P({ pointSize:3.4 }),
+  distort:   P({ pointSize:3.4 }),
 };
-const CONCEPTS = { molecule:1, wafer:2, interfere:3, beam:4, ignite:5, globe:6, swarm:7 };
+const CONCEPTS = { molecule:1, wafer:2, interfere:3, beam:4, ignite:5, globe:6, swarm:7, blob:8, distort:9 };
 const CHAIN_BASE = P({ formGrid:1, tilt:0.5, pointSize:3.6 });
 
 // =============================================================================
@@ -76,13 +78,59 @@ uniform float u_chainMode, u_chainPos, u_chainStyle;   // chainMode=an, Style 0=
 uniform float u_grow;                     // Diamant-Wachstum (0..1.1)
 uniform vec2  u_ring; uniform float u_ringAmp;   // Cursor-Ring (antigravity)
 uniform float u_scatterAmp;                       // verstreuter Antigravity-Modus (Ring 2)
-uniform float u_concept;                          // Step-2-Konzepte: 1..7
+uniform float u_concept;                          // Step-2-Konzepte: 1..9
+uniform float u_distortStr, u_twist;              // Distort (dimorph): cursorX->Staerke, cursorY->Twist (eased)
+uniform float u_clickAge;                          // Sekunden seit letztem Klick (Globus-Ripple)
+uniform float u_distTime;                          // Distort: Noise-Zeit, advanced NUR bei Mausbewegung
 uniform mat4  u_proj, u_view;
 
 varying mediump float v_energy, v_rand, v_form, v_bright;
 
 mat3 rotX(float a){ float c=cos(a),s=sin(a); return mat3(1.,0.,0., 0.,c,-s, 0.,s,c); }
 mat3 rotY(float a){ float c=cos(a),s=sin(a); return mat3(c,0.,s, 0.,1.,0., -s,0.,c); }
+
+// --- Classic Perlin Noise (Gustavson/Ashima) fuer natuerliche Verzerrung (wie Dimorphs cnoise) ---
+vec3 mod289v3(vec3 x){ return x - floor(x*(1.0/289.0))*289.0; }
+vec4 mod289v4(vec4 x){ return x - floor(x*(1.0/289.0))*289.0; }
+vec4 permute(vec4 x){ return mod289v4(((x*34.0)+1.0)*x); }
+vec4 taylorInvSqrt(vec4 r){ return 1.79284291400159 - 0.85373472095314 * r; }
+vec3 fade(vec3 t){ return t*t*t*(t*(t*6.0-15.0)+10.0); }
+float cnoise(vec3 P){
+  vec3 Pi0 = floor(P); vec3 Pi1 = Pi0 + vec3(1.0);
+  Pi0 = mod289v3(Pi0); Pi1 = mod289v3(Pi1);
+  vec3 Pf0 = fract(P); vec3 Pf1 = Pf0 - vec3(1.0);
+  vec4 ix = vec4(Pi0.x, Pi1.x, Pi0.x, Pi1.x);
+  vec4 iy = vec4(Pi0.yy, Pi1.yy);
+  vec4 iz0 = Pi0.zzzz; vec4 iz1 = Pi1.zzzz;
+  vec4 ixy = permute(permute(ix) + iy);
+  vec4 ixy0 = permute(ixy + iz0); vec4 ixy1 = permute(ixy + iz1);
+  vec4 gx0 = ixy0 * (1.0/7.0); vec4 gy0 = fract(floor(gx0)*(1.0/7.0)) - 0.5; gx0 = fract(gx0);
+  vec4 gz0 = vec4(0.5) - abs(gx0) - abs(gy0); vec4 sz0 = step(gz0, vec4(0.0));
+  gx0 -= sz0*(step(0.0,gx0)-0.5); gy0 -= sz0*(step(0.0,gy0)-0.5);
+  vec4 gx1 = ixy1 * (1.0/7.0); vec4 gy1 = fract(floor(gx1)*(1.0/7.0)) - 0.5; gx1 = fract(gx1);
+  vec4 gz1 = vec4(0.5) - abs(gx1) - abs(gy1); vec4 sz1 = step(gz1, vec4(0.0));
+  gx1 -= sz1*(step(0.0,gx1)-0.5); gy1 -= sz1*(step(0.0,gy1)-0.5);
+  vec3 g000=vec3(gx0.x,gy0.x,gz0.x); vec3 g100=vec3(gx0.y,gy0.y,gz0.y);
+  vec3 g010=vec3(gx0.z,gy0.z,gz0.z); vec3 g110=vec3(gx0.w,gy0.w,gz0.w);
+  vec3 g001=vec3(gx1.x,gy1.x,gz1.x); vec3 g101=vec3(gx1.y,gy1.y,gz1.y);
+  vec3 g011=vec3(gx1.z,gy1.z,gz1.z); vec3 g111=vec3(gx1.w,gy1.w,gz1.w);
+  vec4 norm0 = taylorInvSqrt(vec4(dot(g000,g000),dot(g010,g010),dot(g100,g100),dot(g110,g110)));
+  g000*=norm0.x; g010*=norm0.y; g100*=norm0.z; g110*=norm0.w;
+  vec4 norm1 = taylorInvSqrt(vec4(dot(g001,g001),dot(g011,g011),dot(g101,g101),dot(g111,g111)));
+  g001*=norm1.x; g011*=norm1.y; g101*=norm1.z; g111*=norm1.w;
+  float n000=dot(g000,Pf0);
+  float n100=dot(g100,vec3(Pf1.x,Pf0.yz));
+  float n010=dot(g010,vec3(Pf0.x,Pf1.y,Pf0.z));
+  float n110=dot(g110,vec3(Pf1.xy,Pf0.z));
+  float n001=dot(g001,vec3(Pf0.xy,Pf1.z));
+  float n101=dot(g101,vec3(Pf1.x,Pf0.y,Pf1.z));
+  float n011=dot(g011,vec3(Pf0.x,Pf1.yz));
+  float n111=dot(g111,Pf1);
+  vec3 fxyz = fade(Pf0);
+  vec4 n_z = mix(vec4(n000,n100,n010,n110), vec4(n001,n101,n011,n111), fxyz.z);
+  vec2 n_yz = mix(n_z.xy, n_z.zw, fxyz.y);
+  return 2.2 * mix(n_yz.x, n_yz.y, fxyz.x);
+}
 
 void main(){
   // ===== AG DOTS: wenige, grosse, verstreute Punkte; aussen leer, am Cursor wabernder Ring (antigravity mit Dots) =====
@@ -111,20 +159,21 @@ void main(){
 
     if (u_concept < 1.5) {                                              // 1 MOLEKUEL-SPALTUNG (Power-to-X)
       vec2 dir2 = vec2(cos(a_rand*6.2831), sin(a_rand*6.2831));
-      float split = 0.5 + 0.5 * sin(u_time*1.3 + floor(a_uv.x*4.0));
+      float split = 0.5 + 0.5 * sin(u_time*1.3 + a_rand*30.0);          // pro-Dot (KEIN Banding/keine Flaechen)
       float cur = exp(-dot(a_uv-mr, a_uv-mr) * 2.5);                    // Cursor spaltet lokal
       split = clamp(split*0.35 + cur, 0.0, 1.0);
-      p.xy += dir2 * split * 0.12;
+      p.xy += (vec2(a_rand, fract(a_rand*7.3)) - 0.5) * 0.05;          // leichte Grund-Unordnung (Molekuel-Wolke)
+      p.xy += dir2 * split * 0.13;                                      // spaltet auseinander
       b = 0.55 + split*0.7; sm = split*0.4;
     } else if (u_concept < 2.5) {                                      // 2 WAFER-REINIGUNG (Downstream-Plasma)
       tiltC = 1.15;
       float nx = a_uv.x/1.7*0.5 + 0.5;
-      float sweep = fract(u_time*0.13);
+      float sweep = fract(u_time*0.10);
+      float since = fract(sweep - nx);                                  // 0 = gerade gereinigt -> 1 wieder verschmutzt (nahtlos)
       float cur = exp(-dot(a_uv-mr, a_uv-mr) * 3.0);
-      float cleaned = max(smoothstep(sweep+0.04, sweep-0.04, nx), cur);
-      float dirt = step(0.5, a_rand) * (1.0 - cleaned);
+      float dirt = step(0.5, a_rand) * smoothstep(0.05, 0.7, since) * (1.0 - cur);
       p.z += dirt * 0.18 + dirt * sin(u_time*7.0 + a_rand*40.0) * 0.03;
-      b = mix(1.0, 0.20, dirt); sm = cleaned * step(0.5, a_rand) * 0.4;
+      b = mix(1.0, 0.20, dirt); sm = (1.0 - dirt) * step(0.5, a_rand) * 0.3;
     } else if (u_concept < 3.5) {                                      // 3 STEHENDE WELLE / INTERFERENZ
       tiltC = 0.55;
       float d1 = length(a_uv - vec2(-0.7, 0.0));
@@ -139,22 +188,54 @@ void main(){
       float along = dot(a_uv, bd);
       float puls = exp(-pow(along - fract(u_time*0.5)*3.0, 2.0) * 3.0);
       b = 0.26 + lobe*(1.2 + puls*1.6); sm = lobe*0.6;
-    } else if (u_concept < 5.5) {                                      // 5 ZUENDUNG (kaltes Gas -> Flash -> Glow)
+    } else if (u_concept < 5.5) {                                      // 5 ZUENDUNG: kaltes Gas -> BLITZ -> Plasma-Wolke -> dunkel (Loop)
       tiltC = 0.5;
-      float t = fract(u_time*0.22);
-      float flash = exp(-pow((t-0.18)/0.04, 2.0) * 0.5);
-      float glow  = smoothstep(0.18, 0.35, t) * (1.0 - smoothstep(0.8, 1.0, t));
-      p.z += glow * (a_rand-0.5) * 0.12 - glow * 0.08;                 // Radikale stroemen ab
-      b = 0.16 + flash*3.0 + glow*0.9; sm = flash*0.9;
+      float t = fract(u_time*0.16);                                     // langsamer Zyklus (~6s)
+      float flash = exp(-pow((t-0.28)/0.025, 2.0) * 0.5);              // scharfer Zuend-Blitz
+      float glow  = smoothstep(0.28, 0.45, t) * (1.0 - smoothstep(0.7, 0.95, t));  // ruhige Plasma-Wolke danach
+      p.xy += (vec2(a_rand, fract(a_rand*5.3)) - 0.5) * 0.45 * (1.0 - glow);  // kaltes Gas gestreut -> Wolke sammelt sich
+      p.z  += glow * (a_rand - 0.5) * 0.10;
+      b = 0.10 + flash*3.5 + glow*1.0;                                 // dunkel -> Blitz -> Glow
+      sm = flash*1.2 + glow*0.3;
     } else if (u_concept < 6.5) {                                      // 6 GLOBALES NETZ (40+ Laender)
-      p = rotX(0.3) * (rotY(u_time*0.12) * a_sphere);
-      float sig = step(0.985, fract(a_rand*13.0 + u_time*0.4));        // Signale pulsieren zwischen Knoten
-      b = 0.32 + sig*1.7; sm = sig*1.1; tiltC = 0.0;
-    } else {                                                           // 7 SCHWARM -> WORTMARKE
+      vec3 g = rotX(0.3) * (rotY(u_time*0.07) * a_sphere);            // langsame Rotation
+      p = g;
+      float hub = step(0.93, a_rand);                                  // wenige Hub-Knoten (ruhig statt Flackern)
+      b = 0.30 + hub*0.8 + 0.08*sin(u_time + a_rand*6.2831);
+      sm = hub*0.6;
+      float angp = acos(clamp(g.z, -1.0, 1.0));                        // Klick: Signal-Ripple vom Vorderpol ueber den Globus
+      float ripple = exp(-pow((angp - u_clickAge*2.0)*3.0, 2.0)) * step(u_clickAge, 1.7);
+      b += ripple*1.6; sm += ripple*0.9;
+      tiltC = 0.0;
+    } else if (u_concept < 7.5) {                                      // 7 SCHWARM -> WORTMARKE
       float g = smoothstep(0.0, 1.0, 0.5 + 0.5 * sin(u_time*0.32));
       vec3 sc = vec3(a_scatter, sin(a_rand*20.0) * 0.2);
       vec3 wd = vec3(a_word, 0.0);
       p = mix(sc, wd, g); b = 0.40 + g*0.7; sm = g*0.3; tiltC = 0.0;
+    } else if (u_concept < 8.5) {                                      // 8 BLOB (Original) — NUR Ruckeln gefixt
+      vec3 dir = normalize(a_sphere);
+      float t = u_time * 0.4;
+      float n = sin(dir.x*2.0 + t) + sin(dir.y*2.3 - t*0.8) + sin(dir.z*1.7 + t*1.1)
+              + 0.5*sin(dir.x*4.0 + dir.y*3.0 + t*1.3);
+      vec3 def = dir * (1.0 + n * 0.07);                               // Original-Morph
+      def = rotX(0.25) * (rotY(u_time*0.13) * def);
+      vec3 cDir = normalize(vec3(u_ring * 1.2, 0.8));
+      def += cDir * pow(max(0.0, dot(normalize(def), cDir)), 3.0) * 0.18;   // persistente Cursor-Beule (kein Sprung)
+      p = def;
+      b = 0.45 + smoothstep(-1.1, 1.1, def.z) * 0.8;
+      tiltC = 0.0;
+    } else {                                                           // 9 DISTORT (dimorph): Verformung NUR bei Maus-Impuls, idle = still
+      vec3 dir = normalize(a_sphere);
+      float t = u_distTime;                                             // Noise-Zeit advanced nur bei Mausbewegung -> idle eingefroren
+      float distortion = cnoise((dir + t) * 1.0) * u_distortStr;       // Staerke = cursorX (links 0 = glatt)
+      vec3 def = dir * (1.0 + distortion);
+      float angle = sin(dir.y * 5.0 + t) * u_twist * 2.0;              // Twist = cursorY (oben/unten dreht den Blob), staerker
+      float ca = cos(angle), sa = sin(angle);
+      def = vec3(def.x*ca - def.z*sa, def.y, def.x*sa + def.z*ca);
+      def = rotX(0.25) * def;                                          // fixe Ansicht, KEINE Auto-Rotation
+      p = def;
+      b = 0.45 + smoothstep(-1.1, 1.1, def.z) * 0.85;
+      tiltC = 0.0;
     }
 
     p = rotX(tiltC) * p;
@@ -510,6 +591,7 @@ export function createWaveField(canvas, opts = {}) {
     waveAmp:U('u_waveAmp'), waveFreq:U('u_waveFreq'), waveSpeed:U('u_waveSpeed'),
     breathe:U('u_breathe'), flat:U('u_flat'), glow:U('u_glow'), flowAmp:U('u_flowAmp'), waveDir:U('u_waveDir'),
     ring:U('u_ring'), ringAmp:U('u_ringAmp'), scatterAmp:U('u_scatterAmp'), concept:U('u_concept'),
+    distortStr:U('u_distortStr'), twist:U('u_twist'), clickAge:U('u_clickAge'), distTime:U('u_distTime'),
     pulseT:U('u_pulseT'), pulseAmp:U('u_pulseAmp'), pulseCenter:U('u_pulseCenter'),
     mouse:U('u_mouse'), mouseAmp:U('u_mouseAmp'), mouseNDC:U('u_mouseNDC'),
     magCenter:U('u_magCenter'), magAmp:U('u_magAmp'),
@@ -545,6 +627,7 @@ export function createWaveField(canvas, opts = {}) {
   let ringOn = false, ringPos = [0, 0], dashOn = false, scatterPtsOn = false, conceptId = 0;
   let growT = 0, growVal = 1.12;
   let mouse = [0,0], mouseAmp = 0, mouseNDC = [2, 2];
+  let distStr = 0, twist = 0, distTX = 0, distTY = 0, distTime = 0;   // Distort: eased cursorX->Staerke, cursorY->Twist; distTime nur bei Bewegung
   let pulseStart = -10, lastPulse = 0;
   let proj = new Float32Array(16);
   const view = translateZ(-3.4);
@@ -584,6 +667,7 @@ export function createWaveField(canvas, opts = {}) {
     const r = canvas.getBoundingClientRect();
     const mx = (e.clientX - r.left) / r.width, my = (e.clientY - r.top) / r.height;
     mouse = [(mx*2-1)*FIELD_ASPECT, -(my*2-1)]; mouseNDC = [mx*2-1, -(my*2-1)]; mouseAmp = 0.22;
+    distTX = mx; distTY = my;   // Distort-Ziele: cursorX (0=links) -> Staerke, cursorY -> Twist
   }
   function onClick() { pulseStart = T; }
   if (matchMedia('(pointer:fine)').matches && !reduced) {
@@ -617,6 +701,8 @@ export function createWaveField(canvas, opts = {}) {
     if (modeName === 'gem') { growT += dt; const c = growT % 9; growVal = c < 7 ? (c / 7) * 1.12 : 1.12; } // wachsen (7s) + halten (2s)
     else growVal = 1.12;
     if (ringOn) { const f = Math.min(1, dt * 2.5); ringPos[0] += (mouse[0] - ringPos[0]) * f; ringPos[1] += (mouse[1] - ringPos[1]) * f; } // smooth verzoegert
+    { const ef = Math.min(1, dt * 0.6); distStr += (distTX - distStr) * ef; twist += (distTY - twist) * ef; }   // Distort: langsam eased (Impuls -> settle)
+    distTime += mouseAmp * dt * 3.5;   // Distort: Noise-Zeit advanced NUR bei Mausbewegung (idle = still)
 
     if ((cur.autoPulse || 0) > 0.05 && T - lastPulse > cur.autoPulse) { pulseStart = T; lastPulse = T; }
     let pulseT = -1;
@@ -663,6 +749,9 @@ export function createWaveField(canvas, opts = {}) {
     gl.uniform2f(loc.ring, ringPos[0], ringPos[1]); gl.uniform1f(loc.ringAmp, ringOn ? 1 : 0);
     gl.uniform1f(loc.scatterAmp, scatterPtsOn ? 1 : 0);
     gl.uniform1f(loc.concept, conceptId);
+    gl.uniform1f(loc.distortStr, distStr); gl.uniform1f(loc.twist, twist);
+    gl.uniform1f(loc.clickAge, pulseStart >= 0 ? (T - pulseStart) : 99.0);
+    gl.uniform1f(loc.distTime, distTime);
     gl.uniform1f(loc.tilt, cur.tilt); gl.uniform1f(loc.rotY, rotY); gl.uniform1f(loc.spark, spark);
     gl.uniform1f(loc.chainMode, chainOn ? 1 : 0); gl.uniform1f(loc.chainPos, chainP); gl.uniform1f(loc.chainStyle, chainStyle); gl.uniform1f(loc.grow, growVal);
     gl.uniformMatrix4fv(loc.proj, false, proj); gl.uniformMatrix4fv(loc.view, false, view);
