@@ -47,9 +47,8 @@ const PRESETS = {
   swarm:     P({ pointSize:3.2 }),
   blob:      P({ pointSize:3.4 }),
   distort:   P({ pointSize:3.4 }),
-  trail:     P({ pointSize:3.6 }),
 };
-const CONCEPTS = { molecule:1, wafer:2, interfere:3, beam:4, ignite:5, globe:6, swarm:7, blob:8, distort:9, trail:10 };
+const CONCEPTS = { molecule:1, wafer:2, interfere:3, beam:4, ignite:5, globe:6, swarm:7, blob:8, distort:9 };
 const CHAIN_BASE = P({ formGrid:1, tilt:0.5, pointSize:3.6 });
 
 // =============================================================================
@@ -83,7 +82,6 @@ uniform float u_concept;                          // Step-2-Konzepte: 1..9
 uniform float u_distortStr, u_twist;              // Distort (dimorph): cursorX->Staerke, cursorY->Twist (eased)
 uniform float u_clickAge;                          // Sekunden seit Globus-Klick
 uniform vec2  u_clickNDC;                          // Klick-Position (NDC) fuer Globus-Ripple
-uniform vec2  u_trail[10];                         // Cursor-Spur (Momentum) fuer Trail-Modus
 uniform float u_distTime;                          // Distort: Noise-Zeit, advanced NUR bei Mausbewegung
 uniform mat4  u_proj, u_view;
 
@@ -235,7 +233,7 @@ void main(){
       p = def;
       b = 0.45 + smoothstep(-1.1, 1.1, def.z) * 0.8;
       tiltC = 0.0;
-    } else if (u_concept < 9.5) {                                      // 9 DISTORT (dimorph): Verformung NUR bei Maus-Impuls, idle = still
+    } else {                                                           // 9 DISTORT (dimorph): Verformung NUR bei Maus-Impuls, idle = still
       vec3 dir = normalize(a_sphere);
       float t = u_distTime;                                             // Noise-Zeit advanced nur bei Mausbewegung -> idle eingefroren
       float distortion = cnoise((dir + t) * 1.0) * u_distortStr;       // Staerke = cursorX (links 0 = glatt)
@@ -247,18 +245,6 @@ void main(){
       p = def;
       b = 0.45 + smoothstep(-1.1, 1.1, def.z) * 0.85;
       tiltC = 0.0;
-    } else {                                                           // 10 TRAIL — Cursor-Spur mit Momentum
-      p = vec3(a_uv, 0.0);
-      float tb = 0.0, lift = 0.0;
-      for (int i = 0; i < 10; i++) {
-        vec2 dt2 = a_uv - u_trail[i];
-        float w = exp(-dot(dt2, dt2) * 9.0) * (1.0 - float(i) / 10.0);  // neuere Spur-Punkte staerker
-        tb += w; lift += w;
-      }
-      p.z += lift * 0.25;
-      b = 0.25 + tb * 1.9;
-      sm = tb * 1.4;
-      tiltC = 0.4;
     }
 
     p = rotX(tiltC) * p;
@@ -614,7 +600,7 @@ export function createWaveField(canvas, opts = {}) {
     waveAmp:U('u_waveAmp'), waveFreq:U('u_waveFreq'), waveSpeed:U('u_waveSpeed'),
     breathe:U('u_breathe'), flat:U('u_flat'), glow:U('u_glow'), flowAmp:U('u_flowAmp'), waveDir:U('u_waveDir'),
     ring:U('u_ring'), ringAmp:U('u_ringAmp'), scatterAmp:U('u_scatterAmp'), concept:U('u_concept'),
-    distortStr:U('u_distortStr'), twist:U('u_twist'), clickAge:U('u_clickAge'), clickNDC:U('u_clickNDC'), distTime:U('u_distTime'), trail:U('u_trail[0]'),
+    distortStr:U('u_distortStr'), twist:U('u_twist'), clickAge:U('u_clickAge'), clickNDC:U('u_clickNDC'), distTime:U('u_distTime'),
     pulseT:U('u_pulseT'), pulseAmp:U('u_pulseAmp'), pulseCenter:U('u_pulseCenter'),
     mouse:U('u_mouse'), mouseAmp:U('u_mouseAmp'), mouseNDC:U('u_mouseNDC'),
     magCenter:U('u_magCenter'), magAmp:U('u_magAmp'),
@@ -651,8 +637,6 @@ export function createWaveField(canvas, opts = {}) {
   let growT = 0, growVal = 1.12;
   let mouse = [0,0], mouseAmp = 0, mouseNDC = [2, 2];
   let distStr = 0, twist = 0, distTX = 0, distTY = 0, distTime = 0;   // Distort: eased cursorX->Staerke, cursorY->Twist; distTime nur bei Bewegung
-  const trail = []; for (let i = 0; i < 10; i++) trail.push([0, 0]);  // Cursor-Spur (Snake-Follow, Momentum)
-  const trailArr = new Float32Array(20);
   let pulseStart = -10, lastPulse = 0;
   let globeClickT = -10, clickNDCx = 0, clickNDCy = 0;   // Globus: Klick am Ort (nur auf dem Globus)
   let proj = new Float32Array(16);
@@ -734,9 +718,6 @@ export function createWaveField(canvas, opts = {}) {
     if (ringOn) { const f = Math.min(1, dt * 2.5); ringPos[0] += (mouse[0] - ringPos[0]) * f; ringPos[1] += (mouse[1] - ringPos[1]) * f; } // smooth verzoegert
     { const ef = Math.min(1, dt * 0.6); distStr += (distTX - distStr) * ef; twist += (distTY - twist) * ef; }   // Distort: langsam eased (Impuls -> settle)
     distTime += mouseAmp * dt * 3.5;   // Distort: Noise-Zeit advanced NUR bei Mausbewegung (idle = still)
-    trail[0][0] = mouse[0]; trail[0][1] = mouse[1];   // Trail: Snake-Follow mit Momentum
-    for (let i = 1; i < 10; i++) { trail[i][0] += (trail[i-1][0] - trail[i][0]) * 0.35; trail[i][1] += (trail[i-1][1] - trail[i][1]) * 0.35; }
-    for (let i = 0; i < 10; i++) { trailArr[i*2] = trail[i][0]; trailArr[i*2+1] = trail[i][1]; }
 
     if ((cur.autoPulse || 0) > 0.05 && T - lastPulse > cur.autoPulse) { pulseStart = T; lastPulse = T; }
     let pulseT = -1;
@@ -786,7 +767,7 @@ export function createWaveField(canvas, opts = {}) {
     gl.uniform1f(loc.distortStr, distStr); gl.uniform1f(loc.twist, twist);
     gl.uniform1f(loc.clickAge, globeClickT >= 0 ? (T - globeClickT) : 99.0);
     gl.uniform2f(loc.clickNDC, clickNDCx, clickNDCy);
-    gl.uniform1f(loc.distTime, distTime); gl.uniform2fv(loc.trail, trailArr);
+    gl.uniform1f(loc.distTime, distTime);
     gl.uniform1f(loc.tilt, cur.tilt); gl.uniform1f(loc.rotY, rotY); gl.uniform1f(loc.spark, spark);
     gl.uniform1f(loc.chainMode, chainOn ? 1 : 0); gl.uniform1f(loc.chainPos, chainP); gl.uniform1f(loc.chainStyle, chainStyle); gl.uniform1f(loc.grow, growVal);
     gl.uniformMatrix4fv(loc.proj, false, proj); gl.uniformMatrix4fv(loc.view, false, view);
