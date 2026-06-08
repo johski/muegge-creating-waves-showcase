@@ -33,6 +33,11 @@
   .panel button:hover { color:#fff; background:rgba(96,198,240,.12); }
   .panel button.active { color:var(--ink); background:var(--cyan); font-weight:700; }
   .panel .sep { width:1px; height:22px; background:rgba(255,255,255,.14); margin:0 .25rem; }
+  /* Beschriftete Sektionen (Geometrie-Typ) */
+  .panel .grp { width:100%; display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:.3rem; }
+  .panel .grp-h { width:100%; text-align:center; font-size:.6rem; font-weight:700; letter-spacing:.18em;
+    text-transform:uppercase; color:var(--cyan); opacity:.55; margin:.5rem 0 .05rem; }
+  .panel .grp:first-of-type .grp-h { margin-top:.1rem; }
   .panel .scrub { display:none; align-items:center; gap:.5rem; padding:0 .35rem; }
   .panel .scrub.show { display:flex; }
   .panel input[type=range] { width:130px; accent-color:var(--cyan); }
@@ -65,48 +70,54 @@
       <span>Generator</span><span>Magnetron</span><span>Hohlleiter</span><span>Plasma</span><span>Kristall</span>
     </div>
     <div class="caption" id="caption"></div>
-    <!-- Fläche / Punktefeld -->
-    <button data-mode="wave">Wave</button>
-    <button data-mode="grid">Grundfeld</button>
-    <button data-mode="ring">Hotspot</button>
-    <button data-mode="agdots">Ionen</button>
-    <button data-mode="antigravity">Feldlinien</button>
-    <button data-mode="magnet">Magnetron</button>
-    <button data-mode="pulse">Signal</button>
-    <button data-mode="shock">Impuls</button>
-    <button data-mode="repelG">Auslenkung</button>
-    <button data-mode="interfere">Interferenz</button>
-    <button data-mode="beam">Beam</button>
-    <button data-mode="resonance">Resonanz</button>
-    <button data-mode="ironfilings">Feilspäne</button>
-    <button data-mode="waferscan">Scan</button>
-    <button data-mode="wafer">Wafer</button>
-    <button data-mode="molecule">Molekül</button>
-    <button data-mode="freeze">Erstarrung</button>
-    <button data-mode="strudel">Strudel</button>
-    <button data-mode="mistG">Nebel</button>
-    <span class="sep"></span>
-    <!-- Kugel -->
-    <button data-mode="plasma">Plasma</button>
-    <button data-mode="blob">Blob</button>
-    <button data-mode="distort">Modulation</button>
-    <button data-mode="ignite">Zündung</button>
-    <button data-mode="globe">Netz</button>
-    <span class="sep"></span>
-    <!-- Kristall / Formation -->
-    <button data-mode="gem">Diamant</button>
-    <button data-mode="reaktor">Reaktor</button>
-    <button data-mode="swarm">Formation</button>
-    <span class="sep"></span>
-    <!-- Partikel-Effekte (particles.js, mit Trails) -->
-    <button data-mode="mist">Strömung</button>
-    <button data-mode="repel">Linien</button>
-    <button data-mode="bounce">Kinetik</button>
-    <span class="sep"></span>
-    <!-- Ketten -->
-    <button data-mode="chain">▶ Kette</button>
-    <button data-mode="chain2">▶ Signal-Kette</button>
-    <span class="scrub" id="scrub"><input type="range" min="0" max="1" step="0.001" value="0" id="range" /></span>
+    <div class="grp">
+      <div class="grp-h">Fläche</div>
+      <button data-mode="wave">Wave</button>
+      <button data-mode="grid">Grundfeld</button>
+      <button data-mode="ring">Hotspot</button>
+      <button data-mode="agdots">Ionen</button>
+      <button data-mode="antigravity">Feldlinien</button>
+      <button data-mode="magnet">Magnetron</button>
+      <button data-mode="pulse">Signal</button>
+      <button data-mode="shock">Impuls</button>
+      <button data-mode="repelG">Auslenkung</button>
+      <button data-mode="interfere">Interferenz</button>
+      <button data-mode="beam">Beam</button>
+      <button data-mode="resonance">Resonanz</button>
+      <button data-mode="ironfilings">Feilspäne</button>
+      <button data-mode="waferscan">Scan</button>
+      <button data-mode="wafer">Wafer</button>
+      <button data-mode="molecule">Molekül</button>
+      <button data-mode="freeze">Erstarrung</button>
+      <button data-mode="strudel">Strudel</button>
+      <button data-mode="mistG">Nebel</button>
+    </div>
+    <div class="grp">
+      <div class="grp-h">Kugel</div>
+      <button data-mode="plasma">Plasma</button>
+      <button data-mode="blob">Blob</button>
+      <button data-mode="distort">Modulation</button>
+      <button data-mode="ignite">Zündung</button>
+      <button data-mode="globe">Netz</button>
+    </div>
+    <div class="grp">
+      <div class="grp-h">Kristall · Formation</div>
+      <button data-mode="gem">Diamant</button>
+      <button data-mode="reaktor">Reaktor</button>
+      <button data-mode="swarm">Formation</button>
+    </div>
+    <div class="grp">
+      <div class="grp-h">Partikel-Effekte</div>
+      <button data-mode="mist">Strömung</button>
+      <button data-mode="repel">Linien</button>
+      <button data-mode="bounce">Kinetik</button>
+    </div>
+    <div class="grp">
+      <div class="grp-h">Ketten</div>
+      <button data-mode="chain">▶ Kette</button>
+      <button data-mode="chain2">▶ Signal-Kette</button>
+      <span class="scrub" id="scrub"><input type="range" min="0" max="1" step="0.001" value="0" id="range" /></span>
+    </div>
   </nav>
 
   <div id="err" style="display:none;position:fixed;inset:0;z-index:99;background:rgba(0,0,0,.92);color:#ff8a8a;font:12px/1.5 monospace;padding:2rem;overflow:auto;white-space:pre-wrap;"></div>
