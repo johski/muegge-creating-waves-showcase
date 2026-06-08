@@ -17,7 +17,7 @@ const DEFAULT_COLORS = {
   green: [0x61/255, 0xce/255, 0x70/255], // brand.accent
   hot:   [0xff/255, 0xbc/255, 0x7d/255], // transition
   white: [1, 1, 1],
-  violet:[0xc0/255, 0x8a/255, 0xff/255], // Nebel-Akzent (Particle Mist)
+  violet:[0xc9/255, 0x6a/255, 0xe6/255], // Nebel-Akzent (Particle Mist) — magenta-violett wie screen3
 };
 
 const BASE = {
@@ -50,20 +50,18 @@ const PRESETS = {
   distort:   P({ pointSize:3.4 }),
   strudel:   P({ pointSize:3.6 }),
   blackhole: P({ pointSize:3.6 }),
-  mist:          P({ pointSize:3.0 }),
+  mist:          P({ pointSize:3.6 }),
   repel:         P({ pointSize:3.6 }),
-  bounce:        P({ pointSize:3.4 }),
   constellation: P({ pointSize:3.2 }),
   resonance:     P({ pointSize:3.6 }),
   freeze:        P({ pointSize:3.6 }),
   shock:         P({ pointSize:3.6 }),
   ironfilings:   P({ pointSize:3.4 }),
   waferscan:     P({ pointSize:3.6 }),
-  aggregate:     P({ pointSize:3.4 }),
 };
 const CONCEPTS = {
   molecule:1, wafer:2, interfere:3, beam:4, ignite:5, globe:6, swarm:7, blob:8, distort:9, strudel:10, blackhole:11,
-  mist:12, repel:13, bounce:14, constellation:15, resonance:16, freeze:17, shock:18, ironfilings:19, waferscan:20, aggregate:21,
+  mist:12, repel:13, constellation:15, resonance:16, freeze:17, shock:18, ironfilings:19, waferscan:20,  // 14 (bounce) -> particles.js
 };
 const CHAIN_BASE = P({ formGrid:1, tilt:0.5, pointSize:3.6 });
 
@@ -100,7 +98,8 @@ uniform float u_clickAge;                          // Sekunden seit Globus-Klick
 uniform vec2  u_clickNDC;                          // Klick-Position (NDC) fuer Globus-Ripple
 uniform float u_distTime;                          // Distort: Noise-Zeit, advanced NUR bei Mausbewegung
 uniform float u_vortex;                            // Strudel: 0 statisch -> 1 Wirbel (bei Mausbewegung)
-uniform vec2  u_shockPos; uniform float u_shockAge; // Schockwelle: Klick-Ort (Feldkoords) + Alter in s
+uniform float u_vortPhase;                         // Strudel: akkumulierte Drehphase (nur bei Interaktion -> kein Snap)
+uniform vec2  u_shockPos; uniform float u_shockAge; // Schock/Interaktiv: Klick-Ort (Feldkoords) + Alter in s
 uniform mat4  u_proj, u_view;
 
 varying mediump float v_energy, v_rand, v_form, v_bright, v_tint;
@@ -263,40 +262,30 @@ void main(){
       p = def;
       b = 0.45 + smoothstep(-1.1, 1.1, def.z) * 0.85;
       tiltC = 0.0;
-    } else if (u_concept < 10.5) {                                     // 10 STRUDEL — 3D-Whirlpool: Grid spiralt in einen Trichter, elegante Spiral-Linien, langsame Drehung
-      vec2 d = a_uv;                                                   // zentriert (Maus steuert Sog-Staerke, nicht Position)
-      float r = length(d); float a0 = atan(d.y, d.x);
-      float swirl = 1.5 / (r + 0.35);                                 // innen staerker verdreht -> Grid-Reihen werden zu Spiral-Linien
-      float a = a0 + swirl * (0.9 + u_vortex * 1.2) + u_time * 0.22;  // langsame Grunddrehung, Maus verstaerkt smooth
-      float rr = r * (0.78 + 0.22 * r);                               // leicht reingezogen (Sog)
-      vec3 fp = vec3(cos(a), sin(a), 0.0) * rr;
-      fp.z = -(1.0 / (r + 0.55) - 0.62) * 1.0;                        // Trichter: Mitte tief, Rand flach
-      fp = rotX(0.95) * fp;                                           // 3D-Ansicht in den Trichter (raeumlich wie Distort)
-      p = fp;
-      float depth = smoothstep(1.6, 0.0, r);                          // Mitte = tief/hell
-      b = 0.32 + depth * 0.85;
-      sm = depth * 0.3; tiltC = 0.0;
-    } else if (u_concept < 11.5) {                                     // 11 SCHWARZES LOCH — Sog ins Loch + langsame Rotation, Partikel verschwinden am Horizont
-      vec2 c = u_ring;
-      vec2 d = a_uv - c; float r0 = length(d); float a0 = atan(d.y, d.x);
-      if (a_rand < 0.25) {                                             // ferne Sterne: nur langsame Rotation, kein Sog (Raum-Tiefe)
-        float a = a0 + u_time * 0.05;
-        vec2 np = c + vec2(cos(a), sin(a)) * r0;
-        p = vec3(np, 0.0);
-        b = 0.22 + step(0.97, a_rand) * 0.7 + 0.1 * sin(u_time * 2.0 + a_rand * 50.0);  // Funkeln
-      } else {                                                         // gesogen: spiralt langsam ins Loch, beschleunigt, weg am Horizont
-        float fall = fract(u_time * 0.06 + a_rand * 1.7);            // langsamer Sog-Zyklus pro Partikel
-        float r = (0.18 + r0 * 0.95) * (1.0 - fall);                 // von aussen nach innen
-        float a = a0 + u_time * 0.16 + fall * fall * 7.0;            // langsame Rotation + Einspiralen (innen schneller)
-        vec2 np = c + vec2(cos(a), sin(a)) * r;
-        p = vec3(np, 0.0);
-        float horizon = 0.10;
-        b = smoothstep(horizon, horizon + 0.08, r) * (0.3 + fall * 1.1);  // heller je naeher, verschwindet am Horizont
-        sm = fall * 0.4;
-      }
-      tiltC = 0.0;
-    } else if (u_concept < 12.5) {                                     // 12 PARTIKEL-NEBEL — feine violette Straehnen (Curl-Flow)
-      if (a_rand > 0.55) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; return; }  // duenn -> feiner Nebel
+    } else if (u_concept < 10.5) {                                     // 10 STRUDEL — (stateless-Interim) Whirlpool von oben: Spiral-Rippeln laufen nach innen + dunkles Loch; gleichmäßige Dichte (kein Pile-up). Echter Infall -> particles.js
+      vec2 d = a_uv;
+      float r = length(d); float ang = atan(d.y, d.x);
+      float ripple = sin(r * 12.0 - ang * 2.0 + u_time * 3.0);      // konzentrische Spiral-Rippeln, laufen nach innen (Arme scheinen zu rotieren)
+      float hole = smoothstep(0.40, 0.15, r);                       // dunkles Abfluss-Loch in der Mitte
+      vec3 g = vec3(d, 0.0);                                        // Dots bleiben gleichmäßig verteilt (nur z/Helligkeit moduliert)
+      g.z = ripple * 0.05 * smoothstep(0.30, 1.6, r) - hole * 0.6;  // Oberflächen-Rippeln + Trichter-Loch
+      g = rotX(1.2) * g;                                            // von oben in den Strudel
+      p = g;
+      b = (0.26 + (0.5 + 0.5 * ripple) * 0.5) * (1.0 - hole * 0.92);// Rippeln hell, Loch dunkel
+      sm = 0.2 + (0.5 + 0.5 * ripple) * 0.2; tiltC = 0.0;
+    } else if (u_concept < 11.5) {                                     // 11 SCHWARZES LOCH — kohärente Spiral-Dot-Arme um eine dunkle Leere (Dot-Linien-Stil), langsam rotierend
+      vec2 d = a_uv;
+      float r = length(d); float ang = atan(d.y, d.x);
+      float horizon = 0.28;
+      float rr = horizon + r * 0.82;                               // Grid nach außen -> saubere dunkle Leere in der Mitte
+      float a = ang + 1.8 / rr + u_time * 0.15;                    // innen stärker verdreht -> Spiral-Arme (Dot-Linien) + langsame Rotation
+      vec2 np = vec2(cos(a), sin(a)) * rr;
+      p = vec3(np, 0.0);                                            // face-on (Raum)
+      float ring = exp(-pow((rr - horizon - 0.04) / 0.09, 2.0));   // heller Ring am Lochrand
+      b = 0.16 + ring * 1.3 + smoothstep(horizon, 1.6, rr) * 0.22 + step(0.985, a_rand) * 0.5;
+      sm = ring * 0.4; tiltC = 0.0;
+    } else if (u_concept < 12.5) {                                     // 12 PARTIKEL-NEBEL — feine Cyan-Straehnen (Curl-Flow), brand-konsistent
+      if (a_rand > 0.78) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; return; }  // ~78% sichtbar
       vec3 base = vec3(a_scatter * 1.25, 0.0);
       float t = u_time * 0.06;
       float n1 = cnoise(vec3(base.xy * 1.1, t));
@@ -304,29 +293,22 @@ void main(){
       base.xy += vec2(n2, -n1) * 0.65;                                 // entlang Flow gezogen -> Straehnen
       base.z  += cnoise(vec3(base.xy * 0.8, t + 4.0)) * 0.3;
       p = base;
-      float streak = smoothstep(0.4, 0.9, abs(n1));
-      b = 0.08 + streak * 0.9 + step(0.985, a_rand) * 1.3;            // fein + vereinzelt helle Funken
-      sm = streak * 0.3; tiltC = 0.2; tint = 1.0;
-    } else if (u_concept < 13.5) {                                     // 13 INTERAKTIV — Cursor stoesst Partikel weg (idle flach, „nur interaktiv")
+      float streak = smoothstep(0.3, 0.8, abs(n1));
+      b = 0.4 + streak * 1.6 + step(0.965, a_rand) * 1.4;            // deutlich heller Grundnebel
+      sm = 0.4 + streak * 0.5; tiltC = 0.2;                          // tint=0 -> Cyan wie der Rest
+    } else if (u_concept < 13.5) {                                     // 13 INTERAKTIV — Klick gibt Impuls, Momentum schwingt aus & klingt ab (idle still)
       vec3 g = vec3(a_uv, 0.0);
-      float on = step(length(u_mouseNDC), 1.8);                        // Cursor auf dem Feld?
-      vec2 d = a_uv - mr; float dist = length(d);
-      float push = on * exp(-dist * dist * 2.2);
-      g.xy += normalize(d + 0.0001) * push * 0.55;                     // radial weggedrueckt
-      g.z  += push * 0.55;                                             // angehoben
-      p = g; b = 0.3 + push * 1.7; sm = push * 1.3; tiltC = 0.5;
-    } else if (u_concept < 14.5) {                                     // 14 BOUNCING — Partikel prallen im Kasten ab (keine Wells)
-      float sx = 0.3 + fract(a_rand * 13.0) * 0.7;
-      float sy = 0.3 + fract(a_rand * 71.0) * 0.7;
-      float phx = a_rand * 10.0, phy = fract(a_rand * 7.3) * 10.0;
-      float bx = abs(fract(phx + u_time * sx * 0.15) * 2.0 - 1.0) * 2.0 - 1.0;   // Dreieckswelle -> Abprallen ohne State
-      float by = abs(fract(phy + u_time * sy * 0.15) * 2.0 - 1.0) * 2.0 - 1.0;
-      vec2 bp = vec2(bx * 1.55, by * 1.0);
-      vec2 d = bp - mr; float dist = length(d);
-      bp += normalize(d + 0.0001) * exp(-dist * dist * 3.0) * 0.15;    // Cursor stoesst leicht weg
-      p = vec3(bp, 0.0);
-      b = 0.55 + step(0.9, a_rand) * 0.8; sm = 0.0; tiltC = 0.0;
+      float age = u_shockAge;
+      float env = exp(-age * 1.0) * step(age, 7.0);                   // Momentum klingt ab
+      vec2 dd = a_uv - u_shockPos; float dist = length(dd);
+      float reach = smoothstep(2.4, 0.0, dist);                       // näher am Klick = stärker
+      float kick = env * reach;
+      vec2 dir = normalize(dd + 0.0001);
+      g.xy += dir * kick * 0.5 * sin(age * 5.5);                      // ausschwingen (bounce-artig)
+      g.z  += kick * 0.4 * abs(sin(age * 5.5));
+      p = g; b = 0.28 + kick * 1.6; sm = kick * 1.2; tiltC = 0.4;
     } else if (u_concept < 15.5) {                                     // 15 KONSTELLATION — fliessender Dot-Blob, helle Funken (skielbasa-Look)
+      // (Concept 14 BOUNCING entfernt — gehört ins stateful particles.js)
       vec3 dir = normalize(a_sphere);
       float t = u_time * 0.25;
       float n = cnoise(dir * 1.6 + vec3(t));
@@ -338,14 +320,25 @@ void main(){
       p = def * 1.05;
       b = 0.3 + smoothstep(-1.2, 1.2, def.z) * 0.6 + step(0.93, a_rand) * 1.2;
       sm = step(0.93, a_rand) * 0.6; tiltC = 0.0;
-    } else if (u_concept < 16.5) {                                     // 16 RESONANZ-KAMMER — stehende Welle, Cursor verstimmt die Frequenz
+    } else if (u_concept < 16.5) {                                     // 16 RESONANZ — schwingende Membran; Cursor-x stimmt die Mode WEICH übergeblendet (kein harter Switch), m driftet langsam
+      float cyc = u_time * 0.085;
+      float phase = fract(cyc);
+      float reson = smoothstep(0.10, 0.24, phase) * (1.0 - smoothstep(0.90, 1.0, phase));  // ~15% Ruhe, Rest = Schwingung
+      float PI = 3.14159265;
+      vec2 t01 = a_uv / vec2(1.7, 1.0) * 0.5 + 0.5;               // -> [0,1] auf der Platte
+      float fx = (mr.x + 1.7) * 0.9;                               // Cursor-x = Frequenz (kontinuierlich)
+      float n0 = 2.0 + floor(fx);  float fn = smoothstep(0.0, 1.0, fract(fx));   // weicher Übergang n -> n+1
+      float fy = u_time * 0.07;                                    // m driftet langsam (Variation), ebenfalls weich
+      float m0 = 2.0 + mod(floor(fy), 3.0); float m1 = 2.0 + mod(floor(fy) + 1.0, 3.0); float fm = smoothstep(0.0, 1.0, fract(fy));
+      float s00 = sin(n0*PI*t01.x)*sin(m0*PI*t01.y), s10 = sin((n0+1.0)*PI*t01.x)*sin(m0*PI*t01.y);
+      float s01 = sin(n0*PI*t01.x)*sin(m1*PI*t01.y), s11 = sin((n0+1.0)*PI*t01.x)*sin(m1*PI*t01.y);
+      float modeShape = mix(mix(s00, s10, fn), mix(s01, s11, fn), fm);   // bilinear -> ALLE Übergänge weich, kein Snap
       vec3 g = vec3(a_uv, 0.0);
-      float k = 3.0 + (mr.x + 1.7) * 2.5;                             // Cursor-x -> mehr/weniger Knoten
-      float standing = sin(a_uv.x * k) * cos(u_time * 3.0);          // stehende Welle (Knoten ortsfest)
-      g.z += standing * 0.4;
-      float anti = abs(sin(a_uv.x * k));                             // Baeuche hell, Knoten dunkel
-      b = 0.2 + anti * abs(cos(u_time * 3.0)) * 1.3;
-      sm = anti * 0.4; tiltC = 0.5;
+      g.z += modeShape * 0.42 * reson * sin(u_time * 2.6);         // Platte SCHWINGT in der Mode (Antiknoten auf/ab)
+      p = g;
+      float anti = abs(modeShape);
+      b = 0.22 + reson * anti * 1.3;
+      sm = reson * anti * 0.4; tiltC = 0.5;
     } else if (u_concept < 17.5) {                                     // 17 ERSTARRUNGS-FRONT — Front friert heisse Partikel ins Gitter (Kristallisation)
       float front = fract(u_time * 0.12) * 3.4 - 1.7;                // Front wandert L->R (Feld-x)
       float jit = smoothstep(-0.15, 0.0, a_uv.x - front);           // rechts der Front noch heiss/ungeordnet
@@ -365,34 +358,30 @@ void main(){
       float ret = exp(-pow((rd - u_shockAge * 1.8 + 0.45) * 3.0, 2.0)) * step(u_shockAge, 2.6);
       g.xy -= dir * ret * 0.10;                                      // sanftes Nachfedern
       p = g; b = 0.3 + wave * 1.9; sm = wave * 1.2; tiltC = 0.4;
-    } else if (u_concept < 19.5) {                                     // 19 EISENFEILSPAENE — Dots richten sich am Cursor-Dipol aus (Magnetron-Feld)
+    } else if (u_concept < 19.5) {                                     // 19 EISENFEILSPAENE — Dots richten sich am Cursor-Dipol aus (Magnetron-Feld), scharfe Feldlinien
       vec2 r = a_uv - mr; float rl = length(r); vec2 rn = r / (rl + 0.02);
       vec2 m = vec2(1.0, 0.0);
       vec2 B = 2.0 * dot(m, rn) * rn - m;                            // Dipol-Feldrichtung
       vec2 Bn = normalize(B + 0.0001);
       vec3 g = vec3(a_uv, 0.0);
-      float flow = sin(dot(a_uv, Bn) * 14.0 - u_time * 3.0);        // Feldlinien-Stroemung
-      g.xy += Bn * flow * 0.04;
-      float strength = exp(-rl * rl * 0.8);
-      b = 0.18 + (0.4 + 0.6 * abs(flow)) * (0.3 + strength * 1.5);  // Linienmuster, hell nahe Pol
-      sm = strength * 0.4; tiltC = 0.2;
-    } else if (u_concept < 20.5) {                                     // 20 WAFER-SCAN — vertikale Scan-Linie wandert durch & inspiziert
-      float scan = fract(u_time * 0.18) * 3.4 - 1.7;                 // Scan-x wandert
-      float onLine = exp(-pow((a_uv.x - scan) / 0.05, 2.0));        // Inspektions-Linie
-      float scanned = smoothstep(0.0, -0.1, a_uv.x - scan);        // bereits inspiziert (links)
+      float flow = sin(dot(a_uv, Bn) * 16.0 - u_time * 2.0);
+      float line = pow(abs(flow), 3.0);                             // SCHARFE Feldlinien (dunkel dazwischen)
+      g.xy += Bn * flow * 0.06;                                      // deutlicher entlang der Linie
+      float strength = exp(-rl * rl * 0.9);
+      b = 0.10 + line * (0.5 + strength * 2.4);                     // crisp: hell auf der Linie, dunkel dazwischen
+      sm = line * 0.5 + strength * 0.3; tiltC = 0.2;
+    } else {                                                          // 20 WAFER-SCAN — Scan-Linie legt Die-Grid frei & markiert Defekte (Halbleiter-Inspektion)
+      float scan = fract(u_time * 0.16) * 3.4 - 1.7;
+      float onLine = exp(-pow((a_uv.x - scan) / 0.04, 2.0));        // Inspektions-Linie
+      float scanned = smoothstep(0.0, -0.08, a_uv.x - scan);       // links der Linie = bereits gescannt
+      float cell = step(0.5, sin(a_uv.x * 22.0)) * step(0.5, sin(a_uv.y * 22.0));  // freigelegtes Die-Grid
+      float defect = step(0.992, a_rand);                           // seltene Defekte
       vec3 g = vec3(a_uv, 0.0);
-      g.z += onLine * 0.3;
-      b = 0.22 + scanned * 0.25 + onLine * 1.9;
-      sm = onLine * 1.0; tiltC = 1.05;                              // Aufsicht (wie Wafer)
-    } else {                                                          // 21 AGGREGATION — Partikel ballen sich zu Clustern & loesen sich (Materie-Bildung)
-      float K = 5.0;
-      float ci = floor(fract(a_rand * 17.0) * K);                   // Cluster-Index
-      float ca = ci / K * 6.2831;
-      vec2 center = vec2(cos(ca), sin(ca)) * 0.7;                   // Cluster-Zentren im Kreis
-      float g = smoothstep(0.0, 1.0, 0.5 + 0.5 * sin(u_time * 0.4)); // 0 verstreut -> 1 geballt
-      vec2 pos = mix(a_scatter, center + (vec2(a_rand, fract(a_rand * 7.3)) - 0.5) * 0.12, g);
-      p = vec3(pos, 0.0);
-      b = 0.35 + g * 0.8; sm = g * 0.4; tiltC = 0.2;
+      g.z += onLine * 0.3 + scanned * defect * 0.2;
+      b = 0.12 + scanned * (0.22 + cell * 0.4) + onLine * 1.8 + scanned * defect * (1.4 + sin(u_time * 6.0) * 0.5);
+      sm = onLine * 1.0 + scanned * defect * 0.8;
+      wl = scanned * defect * 0.8;                                  // Defekte weiß markiert
+      tiltC = 1.05;
     }
 
     p = rotX(tiltC) * p;
@@ -412,7 +401,7 @@ void main(){
     float inten = 0.12 + pow(nx, 1.3) * 1.2;     // Aufbau: ruhig links -> stark rechts
     if (u_chainStyle < 0.5) {
       // ----- KETTE = langsames Meer (volles Feld, keine Lücken) + sichtbarer Impuls + Abstrahlen rechts ("creating waves"). Loop. -----
-      float px = u_chainPos;                                                                       // wandernder Impuls 0..1
+      float px = mix(-0.18, 1.18, u_chainPos);                                                     // Impuls startet/endet OFF-SCREEN -> nahtloser Loop (kein Cut)
       float build = smoothstep(0.0, 1.0, nx);                                                      // links ruhig -> rechts mehr Leistung
       float swell = sin(a_uv.x * 2.0 + a_uv.y * 0.5 - u_time * 0.7);                               // langsame Grunddünung (langwellig)
       grid.z += swell * (0.05 + build * 0.18);                                                     // Meer waechst sanft nach rechts
@@ -747,7 +736,7 @@ export function createWaveField(canvas, opts = {}) {
     breathe:U('u_breathe'), flat:U('u_flat'), glow:U('u_glow'), flowAmp:U('u_flowAmp'), waveDir:U('u_waveDir'),
     ring:U('u_ring'), ringAmp:U('u_ringAmp'), scatterAmp:U('u_scatterAmp'), concept:U('u_concept'),
     distortStr:U('u_distortStr'), twist:U('u_twist'), clickAge:U('u_clickAge'), clickNDC:U('u_clickNDC'), distTime:U('u_distTime'), vortex:U('u_vortex'),
-    shockPos:U('u_shockPos'), shockAge:U('u_shockAge'),
+    shockPos:U('u_shockPos'), shockAge:U('u_shockAge'), vortPhase:U('u_vortPhase'),
     pulseT:U('u_pulseT'), pulseAmp:U('u_pulseAmp'), pulseCenter:U('u_pulseCenter'),
     mouse:U('u_mouse'), mouseAmp:U('u_mouseAmp'), mouseNDC:U('u_mouseNDC'),
     magCenter:U('u_magCenter'), magAmp:U('u_magAmp'),
@@ -785,6 +774,7 @@ export function createWaveField(canvas, opts = {}) {
   let mouse = [0,0], mouseAmp = 0, mouseNDC = [2, 2];
   let distStr = 0, twist = 0, distTX = 0, distTY = 0, distTime = 0;   // Distort: eased cursorX->Staerke, cursorY->Twist; distTime nur bei Bewegung
   let vortex = 0;   // Strudel: eased Maus-Aktivitaet (0 statisch -> 1 Wirbel)
+  let vortPhase = 0;   // Strudel: akkumulierte Drehphase (advanced nur bei Interaktion -> idle still, kein Snap)
   let pulseStart = -10, lastPulse = 0;
   let globeClickT = -10, clickNDCx = 0, clickNDCy = 0;   // Globus: Klick am Ort (nur auf dem Globus)
   let shockT = -10, shockPos = [0, 0];                    // Schockwelle: Klick-Ort (Feldkoords) + Startzeit
@@ -833,7 +823,7 @@ export function createWaveField(canvas, opts = {}) {
     if (modeName === 'globe' && Math.hypot(mouseNDC[0], mouseNDC[1]) < 0.65) {  // nur AUF dem Globus
       globeClickT = T; clickNDCx = mouseNDC[0]; clickNDCy = mouseNDC[1];
     }
-    if (modeName === 'shock') { shockT = T; shockPos = [mouse[0], mouse[1]]; }  // Schockwelle am Klick-Ort
+    if (modeName === 'shock' || modeName === 'repel') { shockT = T; shockPos = [mouse[0], mouse[1]]; }  // Klick-Impuls (Schockwelle / Interaktiv)
   }
   if (matchMedia('(pointer:fine)').matches && !reduced) {
     canvas.addEventListener('mousemove', onMove); canvas.addEventListener('click', onClick);
@@ -869,6 +859,7 @@ export function createWaveField(canvas, opts = {}) {
     { const ef = Math.min(1, dt * 0.6); distStr += (distTX - distStr) * ef; twist += (distTY - twist) * ef; }   // Distort: langsam eased (Impuls -> settle)
     distTime += mouseAmp * dt * 3.5;   // Distort: Noise-Zeit advanced NUR bei Mausbewegung (idle = still)
     { const vf = Math.min(1, dt * 2.0); vortex += (Math.min(1, mouseAmp * 4.5) - vortex) * vf; }   // Strudel: smooth aus Maus-Tempo (kein binaeres an/aus -> rund)
+    vortPhase += vortex * dt * 1.4;   // Strudel: dreht nur waehrend Interaktion weiter, haelt sonst die Position
 
     if ((cur.autoPulse || 0) > 0.05 && T - lastPulse > cur.autoPulse) { pulseStart = T; lastPulse = T; }
     let pulseT = -1;
@@ -920,6 +911,7 @@ export function createWaveField(canvas, opts = {}) {
     gl.uniform2f(loc.clickNDC, clickNDCx, clickNDCy);
     gl.uniform1f(loc.distTime, distTime); gl.uniform1f(loc.vortex, vortex);
     gl.uniform2f(loc.shockPos, shockPos[0], shockPos[1]); gl.uniform1f(loc.shockAge, shockT >= 0 ? (T - shockT) : 99.0);
+    gl.uniform1f(loc.vortPhase, vortPhase);
     gl.uniform1f(loc.tilt, cur.tilt); gl.uniform1f(loc.rotY, rotY); gl.uniform1f(loc.spark, spark);
     gl.uniform1f(loc.chainMode, chainOn ? 1 : 0); gl.uniform1f(loc.chainPos, chainP); gl.uniform1f(loc.chainStyle, chainStyle); gl.uniform1f(loc.grow, growVal);
     gl.uniformMatrix4fv(loc.proj, false, proj); gl.uniformMatrix4fv(loc.view, false, view);
