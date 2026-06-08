@@ -16,7 +16,8 @@
   body { font-family:'Hellix','Inter',system-ui,-apple-system,sans-serif; background:var(--ink); color:var(--text); overflow-x:hidden; font-weight:500; }
 
   .hero { position:relative; height:100vh; min-height:560px; width:100%; }
-  #wave { position:absolute; inset:0; width:100%; height:100%; display:block; }
+  #wave, #particles { position:absolute; inset:0; width:100%; height:100%; display:block; }
+  #particles { display:none; }
   .hero__content { position:absolute; inset:0; display:flex; flex-direction:column; justify-content:center; padding:0 8vw; pointer-events:none; z-index:2; }
   .eyebrow { letter-spacing:.28em; text-transform:uppercase; font-size:.72rem; color:var(--cyan); margin-bottom:1.2rem; font-weight:700; }
   h1 { font-size:clamp(2.4rem,7vw,4rem); line-height:1.05; font-weight:700; color:#fff; letter-spacing:.5px; }
@@ -49,6 +50,7 @@
 <body>
   <section class="hero">
     <canvas id="wave"></canvas>
+    <canvas id="particles"></canvas>
     <div class="hero__content">
       <div class="eyebrow">MUEGGE · Microwave & Plasma</div>
       <h1>creating <em>waves</em></h1>
@@ -88,6 +90,7 @@
     <span class="sep"></span>
     <button data-mode="mist">Nebel</button>
     <button data-mode="repel">Interaktiv</button>
+    <button data-mode="bounce">Bouncing</button>
     <button data-mode="constellation">Konstellation</button>
     <button data-mode="resonance">Resonanz</button>
     <button data-mode="freeze">Erstarrung</button>
@@ -106,9 +109,14 @@
     window.addEventListener('error', (ev) => showErr('window.error', ev.error || ev.message));
     window.addEventListener('unhandledrejection', (ev) => showErr('promise', ev.reason));
 
-    let createWaveField;
+    let createWaveField, createParticleField;
     try { ({ createWaveField } = await import('./wave.js')); }
     catch (e) { showErr('import wave.js', e); throw e; }
+    try { ({ createParticleField } = await import('./particles.js')); }
+    catch (e) { showErr('import particles.js', e); throw e; }
+
+    // Modi, die auf der stateful Partikel-Engine (particles.js) laufen
+    const PARTICLE_MODES = new Set(['strudel', 'bounce', 'constellation', 'mist', 'repel']);
 
     const CAPTIONS = {
       wave:    'Mikrowelle — eine Sinus-Wellenfront läuft durchs Feld.',
@@ -130,11 +138,12 @@
       swarm:     'Schwarm — die Partikel finden zur MUEGGE-Wortmarke.',
       blob:      'Blob — organisch morphende Dot-Kugel; der Cursor verformt sie.',
       distort:   'Distort — Mausbewegung verzerrt die Kugel (links↔rechts Stärke, oben↔unten Twist).',
-      strudel:   'Strudel — Whirlpool von oben: Spiral-Rippeln laufen nach innen in ein dunkles Abfluss-Loch.',
+      strudel:   'Strudel — Partikel-Ströme spiralen in den Sog hinein und werden im Zentrum verschluckt (mit Spuren).',
       blackhole: 'Schwarzes Loch — kohärente Spiral-Arme um eine dunkle Leere, langsam rotierend, mit leuchtendem Ring.',
-      mist:          'Nebel — feiner Partikel-Nebel, der in Strähnen durchs Feld strömt (Curl-Flow).',
-      repel:         'Interaktiv — Klick gibt einen Impuls; die Partikel schwingen aus und das Momentum klingt ab.',
-      constellation: 'Konstellation — ein organisch fließender Dot-Blob mit hellen Funken; der Cursor zieht eine Beule.',
+      mist:          'Nebel — feiner Partikel-Nebel, der in Strähnen durchs Feld strömt und Spuren hinterlässt (Curl-Flow).',
+      repel:         'Interaktiv — Partikel folgen einem Flow-Feld; der Cursor wirbelt sie um sich herum.',
+      bounce:        'Bouncing — Partikel prallen mit Schwung von den Wänden ab und hinterlassen Spuren; der Cursor schubst sie.',
+      constellation: 'Konstellation — Partikel folgen einem Perlin-Flow-Feld und zeichnen fließende Spuren in Blob-Form.',
       resonance:     'Resonanz — eine schwingende Membran in ihren Eigenmoden (Antiknoten auf/ab); der Cursor stimmt die Frequenz (Mode n,m). Kurze Ruhe dazwischen.',
       freeze:        'Erstarrung — eine Front läuft durch und friert die heißen Partikel ins Gitter (Kristallisation).',
       shock:         'Schockwelle — Klick erzeugt eine radiale Druckwelle; die Partikel schwingen zurück (Plasma-Puls).',
@@ -167,11 +176,12 @@
       swarm:       'läuft automatisch (Formation)',
       blob:        'Maus bewegen → verformt den Blob',
       distort:     'Maus bewegen verformt · rechts = Stärke · unten = Twist',
-      strudel:     'läuft automatisch (Whirlpool von oben)',
+      strudel:     'läuft automatisch (Partikel-Sog ins Zentrum)',
       blackhole:   'läuft automatisch (Spiral-Arme rotieren)',
       mist:         'läuft automatisch (Curl-Flow)',
-      repel:        'Klick = Impuls · Momentum klingt ab',
-      constellation:'Maus bewegen → verformt den Blob',
+      repel:        'Maus bewegen → wirbelt die Partikel',
+      bounce:       'Maus bewegen → schubst die Partikel',
+      constellation:'läuft automatisch (Flow-Feld + Spuren)',
       resonance:    'Maus bewegen → Frequenz/Mode stimmen',
       freeze:       'läuft automatisch (Erstarrungs-Front)',
       shock:        'Klick = Schockwelle auslösen',
@@ -180,6 +190,7 @@
     };
 
     const canvas = document.getElementById('wave');
+    const pcanvas = document.getElementById('particles');
     const panel = document.getElementById('panel');
     const buttons = [...panel.querySelectorAll('button')];
     const caption = document.getElementById('caption');
@@ -202,8 +213,20 @@
       });
     } catch (e) { showErr('createWaveField', e); throw e; }
 
+    let pfield = null;  // particles.js wird lazy erstellt (erst beim ersten Partikel-Modus)
+
     function select(mode) {
-      field.setMode(mode);
+      const isP = PARTICLE_MODES.has(mode);
+      if (isP) {
+        canvas.style.display = 'none';            // wave.js pausiert (IntersectionObserver)
+        pcanvas.style.display = 'block';
+        if (!pfield) { try { pfield = createParticleField(pcanvas, {}); } catch (e) { showErr('createParticleField', e); throw e; } }
+        pfield.setMode(mode);
+      } else {
+        pcanvas.style.display = 'none';           // particles.js pausiert
+        canvas.style.display = 'block';
+        field.setMode(mode);
+      }
       buttons.forEach((b) => b.classList.toggle('active', b.dataset.mode === mode));
       caption.textContent = CAPTIONS[mode] || '';
       hint.textContent = HINTS[mode] || '';
