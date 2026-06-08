@@ -98,6 +98,10 @@
     <button data-mode="ironfilings">Feilspäne</button>
     <button data-mode="waferscan">Wafer-Scan</button>
     <span class="sep"></span>
+    <button data-mode="strudelG">Strudel · Plane</button>
+    <button data-mode="mistG">Nebel · Feld</button>
+    <button data-mode="repelG">Interaktiv · Klick</button>
+    <span class="sep"></span>
     <button data-mode="chain">▶ Kette</button>
     <button data-mode="chain2">▶ Signal-Kette</button>
     <span class="scrub" id="scrub"><input type="range" min="0" max="1" step="0.001" value="0" id="range" /></span>
@@ -116,7 +120,9 @@
     catch (e) { showErr('import particles.js', e); throw e; }
 
     // Modi, die auf der stateful Partikel-Engine (particles.js) laufen
-    const PARTICLE_MODES = new Set(['strudel', 'bounce', 'constellation', 'mist', 'repel']);
+    const PARTICLE_MODES = new Set(['strudel', 'blackhole', 'bounce', 'constellation', 'mist', 'repel']);
+    // Alte stateless-Varianten (wave.js) unter eigenem Button-Key, gemappt auf die Konzept-Namen
+    const STATELESS_ALIAS = { strudelG: 'strudel', mistG: 'mist', repelG: 'repel' };
 
     const CAPTIONS = {
       wave:    'Mikrowelle — eine Sinus-Wellenfront läuft durchs Feld.',
@@ -139,7 +145,10 @@
       blob:      'Blob — organisch morphende Dot-Kugel; der Cursor verformt sie.',
       distort:   'Distort — Mausbewegung verzerrt die Kugel (links↔rechts Stärke, oben↔unten Twist).',
       strudel:   'Strudel — Partikel-Ströme spiralen in den Sog hinein und werden im Zentrum verschluckt (mit Spuren).',
-      blackhole: 'Schwarzes Loch — kohärente Spiral-Arme um eine dunkle Leere, langsam rotierend, mit leuchtendem Ring.',
+      blackhole: 'Schwarzes Loch — eine Akkretionsscheibe orbitet und spiralt in den Horizont, wo die Partikel verschwinden (dunkle Leere + leuchtender Ring).',
+      strudelG:  'Strudel · Plane — Whirlpool von oben auf dem Punktefeld: Spiral-Rippeln laufen nach innen (stateless-Variante).',
+      mistG:     'Nebel · Feld — feine Curl-Flow-Strähnen auf dem ruhigen Punktefeld (stateless-Variante).',
+      repelG:    'Interaktiv · Klick — Klick gibt einen Impuls; die Partikel schwingen aus und klingen ab (stateless-Variante).',
       mist:          'Nebel — feiner Partikel-Nebel, der in Strähnen durchs Feld strömt und Spuren hinterlässt (Curl-Flow).',
       repel:         'Interaktiv — Partikel folgen einem Flow-Feld; der Cursor wirbelt sie um sich herum.',
       bounce:        'Bouncing — Partikel prallen mit Schwung von den Wänden ab und hinterlassen Spuren; der Cursor schubst sie.',
@@ -177,7 +186,10 @@
       blob:        'Maus bewegen → verformt den Blob',
       distort:     'Maus bewegen verformt · rechts = Stärke · unten = Twist',
       strudel:     'läuft automatisch (Partikel-Sog ins Zentrum)',
-      blackhole:   'läuft automatisch (Spiral-Arme rotieren)',
+      blackhole:   'läuft automatisch (Akkretion + Horizont)',
+      strudelG:    'läuft automatisch (Punktefeld-Whirlpool)',
+      mistG:       'läuft automatisch (Curl-Flow)',
+      repelG:      'Klick = Impuls · Momentum klingt ab',
       mist:         'läuft automatisch (Curl-Flow)',
       repel:        'Maus bewegen → wirbelt die Partikel',
       bounce:       'Maus bewegen → schubst die Partikel',
@@ -225,7 +237,7 @@
       } else {
         pcanvas.style.display = 'none';           // particles.js pausiert
         canvas.style.display = 'block';
-        field.setMode(mode);
+        field.setMode(STATELESS_ALIAS[mode] || mode);
       }
       buttons.forEach((b) => b.classList.toggle('active', b.dataset.mode === mode));
       caption.textContent = CAPTIONS[mode] || '';

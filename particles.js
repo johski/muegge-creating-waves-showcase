@@ -11,6 +11,7 @@
 // (Fade) -> alte Spuren verblassen; Partikel werden additiv darübergezeichnet.
 
 const COLORS = {
+  deep:  [0x0a / 255, 0x1d / 255, 0x37 / 255], // brand.deep (Gradient oben/unten — wie wave.js)
   bg:    [0x0a / 255, 0x15 / 255, 0x23 / 255], // brand.ink
   cyan:  [0x60 / 255, 0xc6 / 255, 0xf0 / 255], // brand.primary
   green: [0x61 / 255, 0xce / 255, 0x70 / 255],
@@ -19,6 +20,7 @@ const COLORS = {
 // Pro-Modus-Parameter
 const MODES = {
   strudel:       { n: 3800, size: 2.6, fade: 0.060, spawn: 'ring' },
+  blackhole:     { n: 3600, size: 2.5, fade: 0.055, spawn: 'disk' },
   bounce:        { n: 1400, size: 3.4, fade: 0.140, spawn: 'box'  },
   constellation: { n: 3400, size: 2.4, fade: 0.016, spawn: 'blob' },
   mist:          { n: 3000, size: 2.3, fade: 0.020, spawn: 'box'  },
@@ -46,11 +48,13 @@ void main(){
   vec2 c = gl_PointCoord - 0.5;
   float d = length(c);
   if (d > 0.5) discard;
-  float a = pow(smoothstep(0.5, 0.0, d), 1.5);
-  gl_FragColor = vec4(u_col * v_b, a);  // additiv
+  float a = pow(smoothstep(0.5, 0.0, d), 1.6) * (0.55 + v_b * 0.45);  // weicher -> kein graues Ausbleichen bei Überlagerung
+  gl_FragColor = vec4(u_col * v_b, a);  // additiv (SRC_ALPHA, ONE)
 }`;
-const Q_VERT = `attribute vec2 p; void main(){ gl_Position = vec4(p, 0.0, 1.0); }`;
-const Q_FRAG = `precision mediump float; uniform vec4 u_fade; void main(){ gl_FragColor = u_fade; }`;
+// Hintergrund/Fade als Brand-Gradient (Deep->Ink) wie wave.js — Trails verblassen ins Blau, nicht ins Grau
+const Q_VERT = `attribute vec2 p; varying vec2 v; void main(){ v = p * 0.5 + 0.5; gl_Position = vec4(p, 0.0, 1.0); }`;
+const Q_FRAG = `precision mediump float; varying vec2 v; uniform vec3 u_top, u_bot; uniform float u_a;
+  void main(){ float t = smoothstep(0.0, 1.0, 1.0 - v.y); gl_FragColor = vec4(mix(u_bot, u_top, t), u_a); }`;
 
 function compile(gl, type, src) {
   const s = gl.createShader(type);
@@ -93,7 +97,7 @@ export function createParticleField(canvas, opts = {}) {
     res: gl.getUniformLocation(prog, 'u_res'), size: gl.getUniformLocation(prog, 'u_size'),
     dpr: gl.getUniformLocation(prog, 'u_dpr'), col: gl.getUniformLocation(prog, 'u_col'),
   };
-  const qloc = { p: gl.getAttribLocation(quad, 'p'), fade: gl.getUniformLocation(quad, 'u_fade') };
+  const qloc = { p: gl.getAttribLocation(quad, 'p'), top: gl.getUniformLocation(quad, 'u_top'), bot: gl.getUniformLocation(quad, 'u_bot'), a: gl.getUniformLocation(quad, 'u_a') };
 
   const bQuad = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, bQuad);
@@ -119,6 +123,10 @@ export function createParticleField(canvas, opts = {}) {
     seed[i] = rnd();
     if (cfg.spawn === 'ring') {                       // Strudel: über die ganze Scheibe verteilt (füllt den Wirbel)
       const a = rnd() * Math.PI * 2, r = S * (0.10 + rnd() * 0.48);
+      pos[i * 2] = cx + Math.cos(a) * r; pos[i * 2 + 1] = cy + Math.sin(a) * r;
+      vel[i * 2] = 0; vel[i * 2 + 1] = 0;
+    } else if (cfg.spawn === 'disk') {                // Schwarzes Loch: Ring außerhalb des Horizonts (Mitte bleibt leer)
+      const a = rnd() * Math.PI * 2, r = S * (0.24 + rnd() * 0.34);
       pos[i * 2] = cx + Math.cos(a) * r; pos[i * 2 + 1] = cy + Math.sin(a) * r;
       vel[i * 2] = 0; vel[i * 2 + 1] = 0;
     } else if (cfg.spawn === 'blob') {                // Konstellation: in einem Kreis
@@ -152,6 +160,19 @@ export function createParticleField(canvas, opts = {}) {
         pos[i * 2 + 1] += (tny * tang + iny * pull) * S * dt;
         bri[i] = 0.35 + Math.min(1, S * 0.18 / (r + 1)) * 0.9;   // heller zur Mitte
         if (r < S * 0.045) spawn(i);                 // verschluckt -> respawn außen
+      }
+    } else if (mode === 'blackhole') {
+      const horizon = S * 0.17;
+      for (let i = 0; i < N; i++) {
+        const dx = cx - pos[i * 2], dy = cy - pos[i * 2 + 1];
+        let r = Math.hypot(dx, dy) || 1;
+        const inx = dx / r, iny = dy / r, tnx = -iny, tny = inx;
+        const tang = S * 0.85 / (r + S * 0.12);      // starker Orbit (Akkretionsscheibe)
+        const pull = S * 0.16 / (r + S * 0.40);      // langsamer Einzug -> viele Umläufe
+        pos[i * 2]     += (tnx * tang + inx * pull) * S * dt;
+        pos[i * 2 + 1] += (tny * tang + iny * pull) * S * dt;
+        bri[i] = 0.28 + Math.max(0, 1 - (r - horizon) / (S * 0.22)) * 0.85;  // heller zum Horizont (Ring)
+        if (r < horizon) spawn(i);                   // verschwindet am Horizont -> dunkle Leere bleibt
       }
     } else if (mode === 'bounce') {
       const g = S * 0.0;                             // keine Gravitation
@@ -200,16 +221,20 @@ export function createParticleField(canvas, opts = {}) {
     mActive = Math.max(0, mActive - dt * 1.5);
   }
 
-  function render() {
-    gl.viewport(0, 0, canvas.width, canvas.height);
-    // Trail-Fade: halbtransparente bg-Quad über alles (alte Spuren verblassen)
-    gl.disable(gl.BLEND);
+  function drawBg(alpha) {  // Brand-Gradient (Deep oben/Ink) als Quad; alpha<1 = Trail-Fade, alpha=1 = voll
     gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     gl.useProgram(quad);
     gl.bindBuffer(gl.ARRAY_BUFFER, bQuad);
     gl.enableVertexAttribArray(qloc.p); gl.vertexAttribPointer(qloc.p, 2, gl.FLOAT, false, 0, 0);
-    gl.uniform4f(qloc.fade, colors.bg[0], colors.bg[1], colors.bg[2], cfg.fade);
+    gl.uniform3f(qloc.top, colors.deep[0], colors.deep[1], colors.deep[2]);
+    gl.uniform3f(qloc.bot, colors.bg[0], colors.bg[1], colors.bg[2]);
+    gl.uniform1f(qloc.a, alpha);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
+  }
+
+  function render() {
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    drawBg(cfg.fade);   // Trail-Fade: Gradient halbtransparent über alles -> alte Spuren verblassen ins Blau
 
     // Partikel additiv
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
@@ -226,7 +251,7 @@ export function createParticleField(canvas, opts = {}) {
     gl.drawArrays(gl.POINTS, 0, N);
   }
 
-  function clearAll() { gl.clearColor(colors.bg[0], colors.bg[1], colors.bg[2], 1); gl.clear(gl.COLOR_BUFFER_BIT); }
+  function clearAll() { gl.viewport(0, 0, canvas.width, canvas.height); drawBg(1.0); }
 
   function resize() {
     const dpr = Math.min(window.devicePixelRatio || 1, dprCap);
