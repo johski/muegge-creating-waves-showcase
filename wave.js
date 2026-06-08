@@ -262,17 +262,18 @@ void main(){
       p = def;
       b = 0.45 + smoothstep(-1.1, 1.1, def.z) * 0.85;
       tiltC = 0.0;
-    } else if (u_concept < 10.5) {                                     // 10 STRUDEL — (stateless-Interim) Whirlpool von oben: Spiral-Rippeln laufen nach innen + dunkles Loch; gleichmäßige Dichte (kein Pile-up). Echter Infall -> particles.js
+    } else if (u_concept < 10.5) {                                     // 10 STRUDEL (Plane) — die Plane formt sich nach unten zum Trichter (KEIN Loch): Mitte wird verdreht & nach unten gezogen
       vec2 d = a_uv;
-      float r = length(d); float ang = atan(d.y, d.x);
-      float ripple = sin(r * 12.0 - ang * 2.0 + u_time * 3.0);      // konzentrische Spiral-Rippeln, laufen nach innen (Arme scheinen zu rotieren)
-      float hole = smoothstep(0.40, 0.15, r);                       // dunkles Abfluss-Loch in der Mitte
-      vec3 g = vec3(d, 0.0);                                        // Dots bleiben gleichmäßig verteilt (nur z/Helligkeit moduliert)
-      g.z = ripple * 0.05 * smoothstep(0.30, 1.6, r) - hole * 0.6;  // Oberflächen-Rippeln + Trichter-Loch
-      g = rotX(1.2) * g;                                            // von oben in den Strudel
+      float r = length(d); float a0 = atan(d.y, d.x);
+      float swirl = 1.3 / (r + 0.5);                                // Verdrehung, stärker zur Mitte -> Spiral-Trichter
+      float a = a0 + swirl * 0.9 + u_time * 0.3;                    // dreht langsam (formt sich)
+      vec2 np = vec2(cos(a), sin(a)) * r;                           // Plane verdreht (kohärent, gefüllt -> kein Loch)
+      float funnel = exp(-r * r * 1.6);                             // 1 in der Mitte -> 0 außen
+      vec3 g = vec3(np, -funnel * 1.4);                             // Mitte SICHTBAR nach unten gezogen (Trichter)
+      g = rotX(0.85) * g;                                           // schräg -> Trichter-Tiefe sichtbar
       p = g;
-      b = (0.26 + (0.5 + 0.5 * ripple) * 0.5) * (1.0 - hole * 0.92);// Rippeln hell, Loch dunkel
-      sm = 0.2 + (0.5 + 0.5 * ripple) * 0.2; tiltC = 0.0;
+      b = 0.32 + funnel * 0.7;                                      // Mitte heller (tiefster Punkt)
+      sm = funnel * 0.3; tiltC = 0.0;
     } else if (u_concept < 11.5) {                                     // 11 SCHWARZES LOCH — kohärente Spiral-Dot-Arme um eine dunkle Leere (Dot-Linien-Stil), langsam rotierend
       vec2 d = a_uv;
       float r = length(d); float ang = atan(d.y, d.x);
@@ -862,6 +863,9 @@ export function createWaveField(canvas, opts = {}) {
     vortPhase += vortex * dt * 1.4;   // Strudel: dreht nur waehrend Interaktion weiter, haelt sonst die Position
 
     if ((cur.autoPulse || 0) > 0.05 && T - lastPulse > cur.autoPulse) { pulseStart = T; lastPulse = T; }
+    if ((modeName === 'shock' || modeName === 'repel') && (T - shockT > 4.0)) {   // Auto-Impuls bei Idle (User-Klick setzt shockT zurück)
+      shockT = T; shockPos = [Math.sin(T * 2.1) * 1.0, Math.cos(T * 1.7) * 0.6];
+    }
     let pulseT = -1;
     if (pulseStart >= 0) { const pd = (T - pulseStart) / 1.6; pulseT = pd <= 1 ? pd : -1; }
 

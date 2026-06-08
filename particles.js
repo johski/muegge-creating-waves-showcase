@@ -19,12 +19,9 @@ const COLORS = {
 
 // Pro-Modus-Parameter
 const MODES = {
-  strudel:       { n: 3800, size: 2.6, fade: 0.060, spawn: 'ring' },
-  blackhole:     { n: 3600, size: 2.5, fade: 0.055, spawn: 'disk' },
-  bounce:        { n: 1400, size: 3.4, fade: 0.140, spawn: 'box'  },
-  constellation: { n: 3400, size: 2.4, fade: 0.016, spawn: 'blob' },
-  mist:          { n: 3000, size: 2.3, fade: 0.020, spawn: 'box'  },
-  repel:         { n: 3000, size: 2.6, fade: 0.050, spawn: 'box'  },
+  bounce:        { n: 1400, size: 3.4, fade: 0.140, spawn: 'box'  },  // langsamer Start, Schubs beschleunigt
+  mist:          { n: 4800, size: 1.9, fade: 0.007, spawn: 'box'  },  // "Strömung": akkumulierende Trails -> dichte Filamente (screen2). fade = Dichte-Regler (kleiner = dichter)
+  repel:         { n: 3000, size: 2.4, fade: 0.045, spawn: 'box'  },  // "Pfade": Flow + starker Cursor-Wirbel
 };
 
 // ---- Shader ----
@@ -103,7 +100,7 @@ export function createParticleField(canvas, opts = {}) {
   gl.bindBuffer(gl.ARRAY_BUFFER, bQuad);
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
 
-  const NMAX = 4200;
+  const NMAX = 5000;
   const pos = new Float32Array(NMAX * 2);   // px
   const vel = new Float32Array(NMAX * 2);
   const bri = new Float32Array(NMAX);
@@ -112,7 +109,7 @@ export function createParticleField(canvas, opts = {}) {
   const bGpu = gl.createBuffer();
 
   let W = 1, H = 1, DPR = 1;
-  let mode = opts.mode || 'strudel';
+  let mode = opts.mode || 'mist';
   let cfg = MODES[mode];
   let N = cfg.n;
   let mx = -1e6, my = -1e6, mActive = 0;   // Maus (px) + Aktivität
@@ -133,9 +130,9 @@ export function createParticleField(canvas, opts = {}) {
       const a = rnd() * Math.PI * 2, r = S * 0.36 * Math.sqrt(rnd());
       pos[i * 2] = cx + Math.cos(a) * r; pos[i * 2 + 1] = cy + Math.sin(a) * r;
       vel[i * 2] = 0; vel[i * 2 + 1] = 0;
-    } else {                                          // box: ganzes Feld
+    } else {                                          // box: ganzes Feld (langsamer Start)
       pos[i * 2] = rnd() * W; pos[i * 2 + 1] = rnd() * H;
-      vel[i * 2] = (rnd() * 2 - 1) * S * 0.25; vel[i * 2 + 1] = (rnd() * 2 - 1) * S * 0.25;
+      vel[i * 2] = (rnd() * 2 - 1) * S * 0.06; vel[i * 2 + 1] = (rnd() * 2 - 1) * S * 0.06;
     }
     bri[i] = 0.4 + rnd() * 0.6;
   }
@@ -148,74 +145,45 @@ export function createParticleField(canvas, opts = {}) {
   function step(dt) {
     const cx = W / 2, cy = H / 2, S = Math.min(W, H);
     dt = Math.min(dt, 0.04);
-    if (mode === 'strudel') {
+    if (mode === 'bounce') {
       for (let i = 0; i < N; i++) {
-        const dx = cx - pos[i * 2], dy = cy - pos[i * 2 + 1];
-        let r = Math.hypot(dx, dy) || 1;
-        const inx = dx / r, iny = dy / r;            // Richtung zum Zentrum
-        const tnx = -iny, tny = inx;                 // tangential (Wirbel)
-        const tang = S * 0.75 / (r + S * 0.08);      // tangential, schneller je näher (Vortex)
-        const pull = S * 0.40 / (r + S * 0.35);      // kräftiger Sog nach innen -> sichtbare Spiral-Einwärts-Bewegung
-        pos[i * 2]     += (tnx * tang + inx * pull) * S * dt;
-        pos[i * 2 + 1] += (tny * tang + iny * pull) * S * dt;
-        bri[i] = 0.35 + Math.min(1, S * 0.18 / (r + 1)) * 0.9;   // heller zur Mitte
-        if (r < S * 0.045) spawn(i);                 // verschluckt -> respawn außen
-      }
-    } else if (mode === 'blackhole') {
-      const horizon = S * 0.17;
-      for (let i = 0; i < N; i++) {
-        const dx = cx - pos[i * 2], dy = cy - pos[i * 2 + 1];
-        let r = Math.hypot(dx, dy) || 1;
-        const inx = dx / r, iny = dy / r, tnx = -iny, tny = inx;
-        const tang = S * 0.85 / (r + S * 0.12);      // starker Orbit (Akkretionsscheibe)
-        const pull = S * 0.16 / (r + S * 0.40);      // langsamer Einzug -> viele Umläufe
-        pos[i * 2]     += (tnx * tang + inx * pull) * S * dt;
-        pos[i * 2 + 1] += (tny * tang + iny * pull) * S * dt;
-        bri[i] = 0.28 + Math.max(0, 1 - (r - horizon) / (S * 0.22)) * 0.85;  // heller zum Horizont (Ring)
-        if (r < horizon) spawn(i);                   // verschwindet am Horizont -> dunkle Leere bleibt
-      }
-    } else if (mode === 'bounce') {
-      const g = S * 0.0;                             // keine Gravitation
-      for (let i = 0; i < N; i++) {
-        vel[i * 2 + 1] += g * dt;
-        // Cursor stößt leicht weg
+        // Cursor SCHUBST kräftig (im Radius) -> beschleunigt; sonst langsames Treiben
         if (mActive > 0.01) {
           const dx = pos[i * 2] - mx, dy = pos[i * 2 + 1] - my, r2 = dx * dx + dy * dy;
-          const rad = S * 0.18;
-          if (r2 < rad * rad) { const r = Math.sqrt(r2) || 1; const f = (1 - r / rad) * S * 2.0; vel[i * 2] += dx / r * f * dt; vel[i * 2 + 1] += dy / r * f * dt; }
+          const rad = S * 0.24;
+          if (r2 < rad * rad) { const r = Math.sqrt(r2) || 1; const f = (1 - r / rad) * S * 4.0; vel[i * 2] += dx / r * f * dt; vel[i * 2 + 1] += dy / r * f * dt; }
         }
+        vel[i * 2] *= (1 - dt * 0.25); vel[i * 2 + 1] *= (1 - dt * 0.25);   // sanfte Reibung -> kehrt zu langsam zurück
         pos[i * 2] += vel[i * 2] * dt; pos[i * 2 + 1] += vel[i * 2 + 1] * dt;
-        if (pos[i * 2] < 0) { pos[i * 2] = 0; vel[i * 2] = Math.abs(vel[i * 2]) * 0.9; }
-        if (pos[i * 2] > W) { pos[i * 2] = W; vel[i * 2] = -Math.abs(vel[i * 2]) * 0.9; }
-        if (pos[i * 2 + 1] < 0) { pos[i * 2 + 1] = 0; vel[i * 2 + 1] = Math.abs(vel[i * 2 + 1]) * 0.9; }
-        if (pos[i * 2 + 1] > H) { pos[i * 2 + 1] = H; vel[i * 2 + 1] = -Math.abs(vel[i * 2 + 1]) * 0.9; }
+        if (pos[i * 2] < 0) { pos[i * 2] = 0; vel[i * 2] = Math.abs(vel[i * 2]) * 0.92; }
+        if (pos[i * 2] > W) { pos[i * 2] = W; vel[i * 2] = -Math.abs(vel[i * 2]) * 0.92; }
+        if (pos[i * 2 + 1] < 0) { pos[i * 2 + 1] = 0; vel[i * 2 + 1] = Math.abs(vel[i * 2 + 1]) * 0.92; }
+        if (pos[i * 2 + 1] > H) { pos[i * 2 + 1] = H; vel[i * 2 + 1] = -Math.abs(vel[i * 2 + 1]) * 0.92; }
+        const sp = Math.hypot(vel[i * 2], vel[i * 2 + 1]);
+        bri[i] = 0.4 + Math.min(1, sp / (S * 0.35)) * 0.6;   // heller wenn schneller (nach Schubs)
       }
-    } else if (mode === 'constellation' || mode === 'mist' || mode === 'repel') {
+    } else {  // mist = "Strömung", repel = "Pfade": Flow-Feld + Trails
       const t = (perf() * 0.0001);
-      const fscale = mode === 'mist' ? 0.0014 : 0.0022;
-      const maxv = (mode === 'mist' ? 0.16 : (mode === 'constellation' ? 0.22 : 0.16)) * S;
+      const fscale = 0.0022;                          // glatte Streamlines -> lange Filamente
+      const maxv = (mode === 'mist' ? 0.22 : 0.18) * S;
       const acc = 1.0 * S;
       for (let i = 0; i < N; i++) {
         const ang = noise2(pos[i * 2] * fscale, pos[i * 2 + 1] * fscale + t) * Math.PI * 4.0;
         let fx = Math.cos(ang), fy = Math.sin(ang);
-        if (mode === 'repel' && mActive > 0.01) {     // Cursor lenkt das Feld (Hub)
+        if (mode === 'repel' && mActive > 0.01) {     // Pfade: STARKER Cursor-Wirbel (großer Radius)
           const dx = pos[i * 2] - mx, dy = pos[i * 2 + 1] - my, r = Math.hypot(dx, dy) || 1;
-          const infl = Math.exp(-(r * r) / (S * S * 0.06));
-          fx = fx * (1 - infl) + (-dy / r) * infl;    // um den Cursor wirbeln
-          fy = fy * (1 - infl) + (dx / r) * infl;
+          const infl = Math.exp(-(r * r) / (S * S * 0.12));
+          fx = fx * (1.0 - infl) + (-dy / r) * infl * 1.8;   // kräftig um den Cursor wirbeln
+          fy = fy * (1.0 - infl) + (dx / r) * infl * 1.8;
         }
         vel[i * 2] += fx * acc * dt; vel[i * 2 + 1] += fy * acc * dt;
         const sp = Math.hypot(vel[i * 2], vel[i * 2 + 1]);
         if (sp > maxv) { vel[i * 2] *= maxv / sp; vel[i * 2 + 1] *= maxv / sp; }
         pos[i * 2] += vel[i * 2] * dt; pos[i * 2 + 1] += vel[i * 2 + 1] * dt;
-        bri[i] = 0.3 + Math.min(1, sp / maxv) * 0.7;
-        if (mode === 'constellation') {               // im Blob halten
-          const dx = pos[i * 2] - cx, dy = pos[i * 2 + 1] - cy;
-          if (dx * dx + dy * dy > (S * 0.42) * (S * 0.42)) spawn(i);
-        } else {                                       // wrap (Nebel/Interaktiv)
-          if (pos[i * 2] < 0) pos[i * 2] += W; if (pos[i * 2] > W) pos[i * 2] -= W;
-          if (pos[i * 2 + 1] < 0) pos[i * 2 + 1] += H; if (pos[i * 2 + 1] > H) pos[i * 2 + 1] -= H;
-        }
+        bri[i] = (mode === 'mist' ? 0.22 + Math.min(1, sp / maxv) * 0.4 : 0.3 + Math.min(1, sp / maxv) * 0.55);
+        // wrap (volles Feld) -> kein Verschmelzen in einen Punkt
+        if (pos[i * 2] < 0) pos[i * 2] += W; if (pos[i * 2] > W) pos[i * 2] -= W;
+        if (pos[i * 2 + 1] < 0) pos[i * 2 + 1] += H; if (pos[i * 2 + 1] > H) pos[i * 2 + 1] -= H;
       }
     }
     mActive = Math.max(0, mActive - dt * 1.5);

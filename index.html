@@ -86,22 +86,20 @@
     <button data-mode="blob">Blob</button>
     <button data-mode="distort">Distort</button>
     <button data-mode="strudel">Strudel</button>
-    <button data-mode="blackhole">Schwarzes Loch</button>
-    <span class="sep"></span>
-    <button data-mode="mist">Nebel</button>
-    <button data-mode="repel">Interaktiv</button>
-    <button data-mode="bounce">Bouncing</button>
-    <button data-mode="constellation">Konstellation</button>
     <button data-mode="resonance">Resonanz</button>
     <button data-mode="freeze">Erstarrung</button>
     <button data-mode="shock">Schockwelle</button>
     <button data-mode="ironfilings">Feilspäne</button>
     <button data-mode="waferscan">Wafer-Scan</button>
+    <button data-mode="mistG">Nebel</button>
+    <button data-mode="repelG">Impuls</button>
     <span class="sep"></span>
-    <button data-mode="strudelG">Strudel · Plane</button>
-    <button data-mode="mistG">Nebel · Feld</button>
-    <button data-mode="repelG">Interaktiv · Klick</button>
+    <!-- Partikel-Effekte (particles.js, mit Trails) -->
+    <button data-mode="mist">Strömung</button>
+    <button data-mode="repel">Pfade</button>
+    <button data-mode="bounce">Bouncing</button>
     <span class="sep"></span>
+    <!-- Ketten -->
     <button data-mode="chain">▶ Kette</button>
     <button data-mode="chain2">▶ Signal-Kette</button>
     <span class="scrub" id="scrub"><input type="range" min="0" max="1" step="0.001" value="0" id="range" /></span>
@@ -120,9 +118,9 @@
     catch (e) { showErr('import particles.js', e); throw e; }
 
     // Modi, die auf der stateful Partikel-Engine (particles.js) laufen
-    const PARTICLE_MODES = new Set(['strudel', 'blackhole', 'bounce', 'constellation', 'mist', 'repel']);
+    const PARTICLE_MODES = new Set(['bounce', 'mist', 'repel']);
     // Alte stateless-Varianten (wave.js) unter eigenem Button-Key, gemappt auf die Konzept-Namen
-    const STATELESS_ALIAS = { strudelG: 'strudel', mistG: 'mist', repelG: 'repel' };
+    const STATELESS_ALIAS = { mistG: 'mist', repelG: 'repel' };
 
     const CAPTIONS = {
       wave:    'Mikrowelle — eine Sinus-Wellenfront läuft durchs Feld.',
@@ -144,18 +142,15 @@
       swarm:     'Schwarm — die Partikel finden zur MUEGGE-Wortmarke.',
       blob:      'Blob — organisch morphende Dot-Kugel; der Cursor verformt sie.',
       distort:   'Distort — Mausbewegung verzerrt die Kugel (links↔rechts Stärke, oben↔unten Twist).',
-      strudel:   'Strudel — Partikel-Ströme spiralen in den Sog hinein und werden im Zentrum verschluckt (mit Spuren).',
-      blackhole: 'Schwarzes Loch — eine Akkretionsscheibe orbitet und spiralt in den Horizont, wo die Partikel verschwinden (dunkle Leere + leuchtender Ring).',
-      strudelG:  'Strudel · Plane — Whirlpool von oben auf dem Punktefeld: Spiral-Rippeln laufen nach innen (stateless-Variante).',
-      mistG:     'Nebel · Feld — feine Curl-Flow-Strähnen auf dem ruhigen Punktefeld (stateless-Variante).',
-      repelG:    'Interaktiv · Klick — Klick gibt einen Impuls; die Partikel schwingen aus und klingen ab (stateless-Variante).',
-      mist:          'Nebel — feiner Partikel-Nebel, der in Strähnen durchs Feld strömt und Spuren hinterlässt (Curl-Flow).',
-      repel:         'Interaktiv — Partikel folgen einem Flow-Feld; der Cursor wirbelt sie um sich herum.',
-      bounce:        'Bouncing — Partikel prallen mit Schwung von den Wänden ab und hinterlassen Spuren; der Cursor schubst sie.',
-      constellation: 'Konstellation — Partikel folgen einem Perlin-Flow-Feld und zeichnen fließende Spuren in Blob-Form.',
+      strudel:   'Strudel — die Plane formt sich nach unten zu einem Trichter; die Mitte wird verdreht und eingesogen (kein Loch).',
+      mistG:     'Nebel — feine Curl-Flow-Strähnen auf dem ruhigen Punktefeld.',
+      repelG:    'Impuls — Klick (oder automatisch nach kurzer Ruhe) gibt einen Impuls; die Partikel schwingen aus und klingen ab.',
+      mist:          'Strömung — dichte Partikel-Filamente folgen einem Flow-Feld und zeichnen fließende Spuren (mit Trails).',
+      repel:         'Pfade — Partikel folgen einem Flow-Feld und ziehen Spuren; der Cursor wirbelt sie kräftig um sich herum.',
+      bounce:        'Bouncing — Partikel treiben langsam und prallen von den Wänden ab; der Cursor schubst sie an und beschleunigt sie.',
       resonance:     'Resonanz — eine schwingende Membran in ihren Eigenmoden (Antiknoten auf/ab); der Cursor stimmt die Frequenz (Mode n,m). Kurze Ruhe dazwischen.',
       freeze:        'Erstarrung — eine Front läuft durch und friert die heißen Partikel ins Gitter (Kristallisation).',
-      shock:         'Schockwelle — Klick erzeugt eine radiale Druckwelle; die Partikel schwingen zurück (Plasma-Puls).',
+      shock:         'Schockwelle — Klick (oder automatisch nach kurzer Ruhe) erzeugt eine radiale Druckwelle; die Partikel schwingen zurück (Plasma-Puls).',
       ironfilings:   'Feilspäne — die Dots richten sich entlang des Cursor-Dipolfelds aus (Magnetron-Feld).',
       waferscan:     'Wafer-Scan — eine Scan-Linie legt das Die-Grid frei und markiert Defekte (Halbleiter-Inspektion).',
       chain:   'Kette — Mikrowellen-Leistung baut sich auf und wird abgestrahlt („creating waves“).',
@@ -185,18 +180,15 @@
       swarm:       'läuft automatisch (Formation)',
       blob:        'Maus bewegen → verformt den Blob',
       distort:     'Maus bewegen verformt · rechts = Stärke · unten = Twist',
-      strudel:     'läuft automatisch (Partikel-Sog ins Zentrum)',
-      blackhole:   'läuft automatisch (Akkretion + Horizont)',
-      strudelG:    'läuft automatisch (Punktefeld-Whirlpool)',
+      strudel:     'läuft automatisch (Plane → Trichter)',
       mistG:       'läuft automatisch (Curl-Flow)',
-      repelG:      'Klick = Impuls · Momentum klingt ab',
-      mist:         'läuft automatisch (Curl-Flow)',
-      repel:        'Maus bewegen → wirbelt die Partikel',
-      bounce:       'Maus bewegen → schubst die Partikel',
-      constellation:'läuft automatisch (Flow-Feld + Spuren)',
+      repelG:      'Klick = Impuls · sonst automatisch',
+      mist:         'läuft automatisch (Flow-Filamente)',
+      repel:        'Maus bewegen → wirbelt die Pfade',
+      bounce:       'Maus bewegen → schubst & beschleunigt',
       resonance:    'Maus bewegen → Frequenz/Mode stimmen',
       freeze:       'läuft automatisch (Erstarrungs-Front)',
-      shock:        'Klick = Schockwelle auslösen',
+      shock:        'Klick = Schockwelle · sonst automatisch',
       ironfilings:  'Maus bewegen → richtet das Feld aus',
       waferscan:    'läuft automatisch (Scan-Linie)',
     };
