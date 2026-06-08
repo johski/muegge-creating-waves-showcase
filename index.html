@@ -66,11 +66,11 @@
     </div>
     <div class="caption" id="caption"></div>
     <button data-mode="wave">Wave</button>
-    <button data-mode="ring">Ring</button>
-    <button data-mode="agdots">Partikel</button>
+    <button data-mode="ring">Hotspot</button>
+    <button data-mode="agdots">Ionen</button>
     <button data-mode="antigravity">Feldlinien</button>
-    <button data-mode="grid">Grid</button>
-    <button data-mode="magnet">Magnet</button>
+    <button data-mode="grid">Grundfeld</button>
+    <button data-mode="magnet">Magnetron</button>
     <button data-mode="pulse">Signal</button>
     <button data-mode="gem">Diamant</button>
     <button data-mode="reaktor">Reaktor</button>
@@ -81,23 +81,23 @@
     <button data-mode="interfere">Interferenz</button>
     <button data-mode="beam">Beam</button>
     <button data-mode="ignite">Zündung</button>
-    <button data-mode="globe">Globus</button>
-    <button data-mode="swarm">Schwarm</button>
+    <button data-mode="globe">Netz</button>
+    <button data-mode="swarm">Formation</button>
     <button data-mode="blob">Blob</button>
-    <button data-mode="distort">Distort</button>
+    <button data-mode="distort">Modulation</button>
     <button data-mode="strudel">Strudel</button>
     <button data-mode="resonance">Resonanz</button>
     <button data-mode="freeze">Erstarrung</button>
-    <button data-mode="shock">Schockwelle</button>
+    <button data-mode="shock">Impuls</button>
     <button data-mode="ironfilings">Feilspäne</button>
-    <button data-mode="waferscan">Wafer-Scan</button>
+    <button data-mode="waferscan">Scan</button>
     <button data-mode="mistG">Nebel</button>
-    <button data-mode="repelG">Impuls</button>
+    <button data-mode="repelG">Auslenkung</button>
     <span class="sep"></span>
     <!-- Partikel-Effekte (particles.js, mit Trails) -->
     <button data-mode="mist">Strömung</button>
-    <button data-mode="repel">Pfade</button>
-    <button data-mode="bounce">Bouncing</button>
+    <button data-mode="repel">Linien</button>
+    <button data-mode="bounce">Kinetik</button>
     <span class="sep"></span>
     <!-- Ketten -->
     <button data-mode="chain">▶ Kette</button>
@@ -124,11 +124,11 @@
 
     const CAPTIONS = {
       wave:    'Mikrowelle — eine Sinus-Wellenfront läuft durchs Feld.',
-      ring:    'Ring — ein wabernder Cursor-Ring auf dem Punktefeld.',
-      agdots:  'Partikel — verstreute Partikel im Feld, am Cursor ein wabernder Ring.',
+      ring:    'Hotspot — eine wabernde Feldüberhöhung am Cursor.',
+      agdots:  'Ionen — verstreute Teilchen im Feld, am Cursor ein wabernder Ring.',
       antigravity: 'Feldlinien — orientierte Striche im Flow-Feld, wirbeln am Cursor.',
-      grid:    'Grid — ruhig atmendes Punktefeld von oben (Prozess-Fläche / Wafer).',
-      magnet:  'Magnet — der Cursor schiebt die Partikel auseinander (Magnetron).',
+      grid:    'Grundfeld — ruhig atmendes Punktefeld von oben (Prozess-Fläche).',
+      magnet:  'Magnetron — der Cursor schiebt die Partikel auseinander.',
       pulse:   'Signal — ein Puls strahlt von der Quelle aus.',
       gem:     'Diamant — CVD-Wachstum: Atome wachsen Schicht für Schicht zum Kristall.',
       reaktor: 'Reaktor — ein strahlender Kristall-Kern.',
@@ -138,21 +138,21 @@
       interfere: 'Interferenz — zwei Mikrowellen-Quellen, stehende Welle (Cursor = 2. Quelle).',
       beam:      'Beam — ein Antennen-Array lenkt einen Strahl; der Cursor steuert.',
       ignite:    'Zündung — kalte Gas-Wolke zündet, ionisiert, glüht, klingt ab.',
-      globe:     'Globus — Lieferung in 40+ Länder; Klick sendet ein Signal.',
-      swarm:     'Schwarm — die Partikel finden zur MUEGGE-Wortmarke.',
+      globe:     'Netz — Lieferung in 40+ Länder; Klick sendet ein Signal.',
+      swarm:     'Formation — die Partikel finden zur MUEGGE-Wortmarke.',
       blob:      'Blob — organisch morphende Dot-Kugel; der Cursor verformt sie.',
-      distort:   'Distort — Mausbewegung verzerrt die Kugel (links↔rechts Stärke, oben↔unten Twist).',
+      distort:   'Modulation — Mausbewegung moduliert die Kugel (links↔rechts Stärke, oben↔unten Twist).',
       strudel:   'Strudel — die Plane formt sich nach unten zu einem Trichter; die Mitte wird verdreht und eingesogen (kein Loch).',
       mistG:     'Nebel — feine Curl-Flow-Strähnen auf dem ruhigen Punktefeld.',
-      repelG:    'Impuls — Klick (oder automatisch nach kurzer Ruhe) gibt einen Impuls; die Partikel schwingen aus und klingen ab.',
+      repelG:    'Auslenkung — Klick (oder automatisch nach kurzer Ruhe) lenkt die Partikel lokal aus; sie schwingen elastisch zurück.',
       mist:          'Strömung — dichte Partikel-Filamente folgen einem Flow-Feld und zeichnen fließende Spuren (mit Trails).',
-      repel:         'Pfade — Partikel folgen einem Flow-Feld und ziehen Spuren; der Cursor wirbelt sie kräftig um sich herum.',
-      bounce:        'Bouncing — Partikel treiben langsam und prallen von den Wänden ab; der Cursor schubst sie an und beschleunigt sie.',
+      repel:         'Linien — Partikel folgen einem Flow-Feld und ziehen Spuren; der Cursor wirbelt sie kräftig um sich herum.',
+      bounce:        'Kinetik — Partikel treiben langsam und prallen von den Wänden ab; der Cursor schubst sie an und beschleunigt sie.',
       resonance:     'Resonanz — eine schwingende Membran in ihren Eigenmoden (Antiknoten auf/ab); der Cursor stimmt die Frequenz (Mode n,m). Kurze Ruhe dazwischen.',
       freeze:        'Erstarrung — eine Front läuft durch und friert die heißen Partikel ins Gitter (Kristallisation).',
-      shock:         'Schockwelle — Klick (oder automatisch nach kurzer Ruhe) erzeugt eine radiale Druckwelle; die Partikel schwingen zurück (Plasma-Puls).',
+      shock:         'Impuls — Klick (oder automatisch nach kurzer Ruhe) erzeugt eine radiale Druckwelle; die Partikel schwingen zurück.',
       ironfilings:   'Feilspäne — die Dots richten sich entlang des Cursor-Dipolfelds aus (Magnetron-Feld).',
-      waferscan:     'Wafer-Scan — eine Scan-Linie legt das Die-Grid frei und markiert Defekte (Halbleiter-Inspektion).',
+      waferscan:     'Scan — eine Scan-Linie legt das Die-Grid frei und markiert Defekte (Halbleiter-Inspektion).',
       chain:   'Kette — Mikrowellen-Leistung baut sich auf und wird abgestrahlt („creating waves“).',
       chain2:  'Signal-Kette — ein Signal läuft durch die Komplettkette (Generator → … → Kristall).',
     };
@@ -160,8 +160,8 @@
     // Interaktions-Hinweis je Modus (oben rechts) — nur was wirklich reagiert
     const HINTS = {
       wave:        'Maus bewegen · Klick = Puls',
-      ring:        'Maus bewegen → der Ring folgt',
-      agdots:      'Maus bewegen → Partikel reagieren',
+      ring:        'Maus bewegen → der Hotspot folgt',
+      agdots:      'Maus bewegen → Ionen reagieren',
       antigravity: 'Maus bewegen → Feldlinien wirbeln',
       grid:        'Maus bewegen · Klick = Puls',
       magnet:      'Maus bewegen → schiebt die Partikel',
@@ -176,19 +176,19 @@
       interfere:   'Maus bewegen → zweite Wellenquelle',
       beam:        'Maus bewegen → lenkt den Strahl',
       ignite:      'läuft automatisch (Zündung)',
-      globe:       'Klick = Signal über den Globus senden',
+      globe:       'Klick = Signal über das Netz senden',
       swarm:       'läuft automatisch (Formation)',
       blob:        'Maus bewegen → verformt den Blob',
       distort:     'Maus bewegen verformt · rechts = Stärke · unten = Twist',
       strudel:     'läuft automatisch (Plane → Trichter)',
       mistG:       'läuft automatisch (Curl-Flow)',
-      repelG:      'Klick = Impuls · sonst automatisch',
+      repelG:      'Klick = Auslenkung · sonst automatisch',
       mist:         'läuft automatisch (Flow-Filamente)',
-      repel:        'Maus bewegen → wirbelt die Pfade',
+      repel:        'Maus bewegen → wirbelt die Linien',
       bounce:       'Maus bewegen → schubst & beschleunigt',
       resonance:    'Maus bewegen → Frequenz/Mode stimmen',
       freeze:       'läuft automatisch (Erstarrungs-Front)',
-      shock:        'Klick = Schockwelle · sonst automatisch',
+      shock:        'Klick = Impuls · sonst automatisch',
       ironfilings:  'Maus bewegen → richtet das Feld aus',
       waferscan:    'läuft automatisch (Scan-Linie)',
     };
