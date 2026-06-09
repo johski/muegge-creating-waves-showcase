@@ -20,14 +20,18 @@
   .eyebrow { letter-spacing:.28em; text-transform:uppercase; font-size:.72rem; color:var(--cyan);
     margin-bottom:1.4rem; font-weight:700; }
 
-  /* H1 — wie muegge-group.com. TODO: size / letter-spacing / line-height von muegge bestätigen/ersetzen. */
+  /* H1 — exakt wie muegge-group.com .display-1 */
   h1 { font-weight:700; text-transform:uppercase; color:#fff;
-    font-size:clamp(2.6rem, 6vw, 4.5rem); letter-spacing:.01em; line-height:1.05; }
-  h1 em { font-style:normal; color:var(--cyan); }   /* Brand-Akzent "waves" — auf Wunsch entfernen */
+    font-size:42px; letter-spacing:1.17px; line-height:48px; }
+  @media (min-width:576px)  { h1 { font-size:65px; letter-spacing:1.785px; line-height:76px; } }
+  @media (min-width:1025px) { h1 { font-size:88px; line-height:104px; } }
+  h1 em { font-style:normal; color:var(--cyan); }   /* Brand-Akzent "waves" */
 
-  /* Intro (ehem. Subhead) — 500, weiß. TODO: size/line-height ggf. an muegge angleichen. */
-  .intro { margin-top:1.6rem; max-width:42ch; color:#fff; font-weight:500;
-    font-size:1.15rem; line-height:1.5; }
+  /* Intro — exakt wie muegge-group.com .text-intro */
+  .intro { margin-top:1.6rem; max-width:46ch; color:#fff; font-weight:500;
+    font-size:16px; line-height:26px; }
+  @media (min-width:576px)  { .intro { font-size:17px; line-height:28px; } }
+  @media (min-width:1025px) { .intro { font-size:18px; line-height:30px; } }
 </style>
 </head>
 <body>
